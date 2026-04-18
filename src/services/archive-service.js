@@ -1,14 +1,23 @@
 const logger = require('../utils/logger');
 const TempFileService = require('./temp-file-service');
+const RarCommandService = require('./rar-command-service');
 const { InternalError } = require('../utils/errors');
 
 class ArchiveService {
-  constructor(tempDir = process.env.TEMP_DIR || '/tmp/rarbox') {
+  constructor(
+    tempDir = process.env.TEMP_DIR || '/tmp/rarbox',
+    rarBin = process.env.RAR_BIN || 'rar'
+  ) {
     this.tempFileService = new TempFileService(tempDir);
+    this.rarCommandService = new RarCommandService(
+      rarBin,
+      parseInt(process.env.REQUEST_TIMEOUT_MS || '15000', 10)
+    );
   }
 
   async generateArchive(request, archiveName, files, requestId) {
     let sessionDir;
+    let archivePath;
 
     try {
       sessionDir = await this.tempFileService.initSession(requestId);
@@ -31,9 +40,18 @@ class ArchiveService {
 
       logger.info({ requestId, sessionDir }, 'Files written to temporary directory');
 
+      archivePath = await this.rarCommandService.createArchive(
+        sessionDir,
+        archiveName,
+        requestId
+      );
+
+      logger.info({ requestId, archivePath }, 'Archive compression completed');
+
       return {
         sessionDir,
         archiveName,
+        archivePath,
         files: {
           html: files.html.filename,
           text: files.text.filename,

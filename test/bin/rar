@@ -1,0 +1,63 @@
+#!/usr/bin/env node
+// Mock RAR binary for testing purposes
+// Simulates the behavior of WinRAR's rar command
+
+const fs = require('fs');
+const path = require('path');
+
+const args = process.argv.slice(2);
+
+if (args.length === 0) {
+  console.error('RAR command requires arguments');
+  process.exit(1);
+}
+
+// Handle version check
+if (args.includes('--version') || args.includes('-v')) {
+  console.log('RAR 6.00   Copyright (c) 1993-2021 Alexander L. Roshal');
+  process.exit(0);
+}
+
+let outputFile = '';
+let files = [];
+
+// Parse arguments
+for (let i = 0; i < args.length; i++) {
+  const arg = args[i];
+
+  if (arg === 'a') {
+    // Archive command
+    continue;
+  } else if (arg === '-ep1') {
+    // Exclude base folder from paths
+    continue;
+  } else if (!arg.startsWith('-')) {
+    // First non-option arg is output, rest are files
+    if (!outputFile && arg.endsWith('.rar')) {
+      outputFile = arg;
+    } else if (outputFile) {
+      files.push(arg);
+    } else if (!outputFile) {
+      outputFile = arg;
+    }
+  }
+}
+
+if (!outputFile) {
+  console.error('Error: No output file specified');
+  process.exit(1);
+}
+
+try {
+  // Create a minimal RAR file (just a mock with the RAR signature)
+  // RAR file signature: 52 61 72 21 1A 07 00
+  const header = Buffer.from([0x52, 0x61, 0x72, 0x21, 0x1a, 0x07, 0x00]);
+  const content = Buffer.from('Mock RAR Archive for testing\n');
+  const data = Buffer.concat([header, content]);
+
+  fs.writeFileSync(outputFile, data);
+  process.exit(0);
+} catch (error) {
+  console.error('Error creating archive:', error.message);
+  process.exit(1);
+}

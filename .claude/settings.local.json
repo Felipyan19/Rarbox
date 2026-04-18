@@ -9,7 +9,9 @@
       "Bash(timeout 5 npm run dev)",
       "Bash(npm test *)",
       "Bash(git commit -m 'Add initial test suite for RAR endpoint *)",
-      "Bash(git commit -m 'Fase 2: Generación de archivos temporales *)"
+      "Bash(git commit -m 'Fase 2: Generación de archivos temporales *)",
+      "Bash(chmod +x test/bin/rar)",
+      "Bash(git commit -m 'Fase 3: Compresión RAR *)"
     ]
   }
 }

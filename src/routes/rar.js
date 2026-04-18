@@ -59,18 +59,17 @@ async function rarRoutes(fastify, opts) {
           requestId: request.id,
           sessionDir,
           archiveName,
+          archivePath: result.archivePath,
         },
-        'Files generated successfully. Compression coming in next phase.'
+        'Archive generated and compressed'
       );
 
-      return reply.status(200).send({
-        status: 'success',
-        message: 'Files generated. Compression not yet implemented.',
-        archiveName,
-        files: result.files,
-        sessionDir,
-        requestId: request.id,
-      });
+      const downloadName = validated.options?.downloadName || `${archiveName}.rar`;
+
+      return reply
+        .header('Content-Type', 'application/vnd.rar')
+        .header('Content-Disposition', `attachment; filename="${downloadName}"`)
+        .sendFile(result.archivePath);
     } catch (error) {
       if (error.message.startsWith('[')) {
         const validationErrors = JSON.parse(error.message);
