@@ -1,18 +1,20 @@
-const { v4: uuidv4 } = require('uuid');
 const addRequestId = require('../utils/request-id');
 const { checkApiKey } = require('../utils/auth');
 const { validateRarRequest } = require('../schemas/rar-request.schema');
 const { sanitizeArchiveName, sanitizeFilename } = require('../utils/sanitize');
 const { ValidationError } = require('../utils/errors');
+const ArchiveService = require('../services/archive-service');
 
 async function rarRoutes(fastify, opts) {
   const API_KEY = process.env.API_KEY;
-  const REQUEST_TIMEOUT_MS = parseInt(process.env.REQUEST_TIMEOUT_MS || '15000', 10);
+  const archiveService = new ArchiveService();
 
   fastify.addHook('preHandler', addRequestId);
 
   fastify.post('/v1/archives/rar', async (request, reply) => {
     const startTime = Date.now();
+    let sessionDir;
+
     request.log.info({ requestId: request.id }, 'POST /v1/archives/rar received');
 
     try {
@@ -34,9 +36,39 @@ async function rarRoutes(fastify, opts) {
         'Request validated and sanitized'
       );
 
-      return reply.status(501).send({
-        error: 'NOT_IMPLEMENTED',
-        message: 'Archive generation not yet implemented. Coming in next phase.',
+      const result = await archiveService.generateArchive(
+        request,
+        archiveName,
+        {
+          html: {
+            filename: htmlFilename,
+            content: validated.files.html.content,
+          },
+          text: {
+            filename: textFilename,
+            content: validated.files.text.content,
+          },
+        },
+        request.id
+      );
+
+      sessionDir = result.sessionDir;
+
+      request.log.info(
+        {
+          requestId: request.id,
+          sessionDir,
+          archiveName,
+        },
+        'Files generated successfully. Compression coming in next phase.'
+      );
+
+      return reply.status(200).send({
+        status: 'success',
+        message: 'Files generated. Compression not yet implemented.',
+        archiveName,
+        files: result.files,
+        sessionDir,
         requestId: request.id,
       });
     } catch (error) {
@@ -49,6 +81,17 @@ async function rarRoutes(fastify, opts) {
       }
       throw new ValidationError(error.message);
     } finally {
+      if (sessionDir) {
+        try {
+          await archiveService.cleanup(sessionDir, request.id);
+        } catch (cleanupError) {
+          request.log.warn(
+            { requestId: request.id, cleanupError },
+            'Error during cleanup in finally block'
+          );
+        }
+      }
+
       const duration = Date.now() - startTime;
       request.log.info({ requestId: request.id, durationMs: duration }, 'Request completed');
     }
