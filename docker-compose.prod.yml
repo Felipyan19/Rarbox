@@ -15,6 +15,7 @@ services:
       RATE_LIMIT_WINDOW_MS: ${RATE_LIMIT_WINDOW_MS:-60000}
       TEMP_DIR: /tmp/rarbox
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      SWAGGER_URL: ${SWAGGER_URL:-http://149.130.164.187:5050}
     volumes:
       - /tmp/rarbox:/tmp/rarbox
       - rarbox_logs:/var/log/rarbox

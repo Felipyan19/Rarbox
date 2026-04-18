@@ -91,6 +91,8 @@ Ver `.env.example` para la lista completa.
 - `REQUEST_TIMEOUT_MS`: Timeout para procesos de compresión
 - `TEMP_DIR`: Directorio para archivos temporales
 - `RAR_BIN`: Ruta al binario RAR
+- `ENABLE_HSTS`: Activa Strict-Transport-Security (`true` solo detrás de HTTPS real)
+- `SWAGGER_URL`: URL base que Swagger UI usará para ejecutar requests
 
 ## Seguridad
 

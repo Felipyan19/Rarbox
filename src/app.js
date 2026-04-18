@@ -13,29 +13,39 @@ const app = Fastify({
 });
 
 app.register(helmet, {
+  hsts: process.env.ENABLE_HSTS === 'true',
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
       scriptSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", 'data:'],
+      upgradeInsecureRequests: null,
     },
   },
 });
 
-const swaggerServers = process.env.NODE_ENV === 'production'
+const configuredSwaggerUrl = process.env.SWAGGER_URL;
+const swaggerServers = configuredSwaggerUrl
   ? [
       {
-        url: process.env.SWAGGER_URL || '/',
-        description: 'Production server',
+        url: configuredSwaggerUrl,
+        description: 'Configured server',
       },
     ]
-  : [
-      {
-        url: 'http://localhost:' + (process.env.PORT || '3000'),
-        description: 'Development server',
-      },
-    ];
+  : process.env.NODE_ENV === 'production'
+    ? [
+        {
+          url: '/',
+          description: 'Production server',
+        },
+      ]
+    : [
+        {
+          url: 'http://localhost:' + (process.env.PORT || '3000'),
+          description: 'Development server',
+        },
+      ];
 
 app.register(swagger, {
   openapi: {
@@ -63,6 +73,10 @@ app.register(swagger, {
 
 app.register(swaggerUi, {
   routePrefix: '/docs',
+  uiConfig: {
+    layout: 'BaseLayout',
+    deepLinking: true,
+  },
 });
 
 app.register(healthRoutes);
