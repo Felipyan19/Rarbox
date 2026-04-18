@@ -21,7 +21,8 @@ El servidor estará disponible en `http://localhost:3000`.
 Endpoints:
 - `GET /health` - Estado del servicio
 - `GET /ready` - Readiness probe
-- `POST /v1/archives/rar` - Genera un archivo RAR
+- `GET /metrics` - Métricas de servicio (requests, archives, success rate)
+- `POST /v1/archives/rar` - Genera un archivo RAR (requiere API key, sujeto a rate limit)
 
 ### Prueba rápida
 
@@ -94,9 +95,21 @@ Ver `.env.example` para la lista completa.
 - API key requerida en header `X-API-Key`
 - Validación estricta de entrada con Zod
 - Sanitización de nombres de archivo (prevención de path traversal)
+- Rate limiting por IP (configurable)
 - Límite de tamaño de body configurable
 - Helmet para headers de seguridad
 - Logs correlacionados por requestId
+- Cleanup automático de archivos temporales
+- Timeouts configurable para procesos de compresión
+
+## Observabilidad
+
+- `GET /metrics` expone métricas:
+  - Total de requests y éxito/error
+  - Requests limitados por rate limit
+  - Total de archives generados
+  - Tamaño promedio de archivos
+  - Uptime del servicio
 
 ## Fases de Implementación
 

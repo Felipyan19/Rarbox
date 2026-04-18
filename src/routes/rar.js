@@ -1,4 +1,5 @@
 const addRequestId = require('../utils/request-id');
+const rateLimitHook = require('../utils/rate-limit-hook');
 const { checkApiKey } = require('../utils/auth');
 const { validateRarRequest } = require('../schemas/rar-request.schema');
 const { sanitizeArchiveName, sanitizeFilename } = require('../utils/sanitize');
@@ -10,6 +11,7 @@ async function rarRoutes(fastify, opts) {
   const archiveService = new ArchiveService();
 
   fastify.addHook('preHandler', addRequestId);
+  fastify.addHook('preHandler', rateLimitHook);
 
   fastify.post('/v1/archives/rar', async (request, reply) => {
     const startTime = Date.now();

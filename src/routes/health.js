@@ -1,4 +1,7 @@
 const addRequestId = require('../utils/request-id');
+const MetricsService = require('../services/metrics-service');
+
+const metricsService = new MetricsService();
 
 async function healthRoutes(fastify) {
   fastify.addHook('preHandler', addRequestId);
@@ -18,6 +21,11 @@ async function healthRoutes(fastify) {
       timestamp: new Date().toISOString(),
     };
   });
+
+  fastify.get('/metrics', async (request, reply) => {
+    return metricsService.getMetrics();
+  });
 }
 
-module.exports = healthRoutes;
+module.exports = { healthRoutes, metricsService };
+

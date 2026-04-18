@@ -1,7 +1,7 @@
 const Fastify = require('fastify');
 const helmet = require('@fastify/helmet');
 const logger = require('./utils/logger');
-const healthRoutes = require('./routes/health');
+const { healthRoutes, metricsService } = require('./routes/health');
 const rarRoutes = require('./routes/rar');
 const errorHandler = require('./utils/error-handler');
 
@@ -14,6 +14,11 @@ app.register(helmet);
 
 app.register(healthRoutes);
 app.register(rarRoutes);
+
+app.addHook('onResponse', (request, reply, done) => {
+  metricsService.recordRequest(reply.statusCode);
+  done();
+});
 
 app.setErrorHandler((error, request, reply) => {
   errorHandler(error, request, reply);
