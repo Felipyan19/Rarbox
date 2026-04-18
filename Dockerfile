@@ -20,6 +20,9 @@ RUN if getent passwd 1000 >/dev/null; then \
       useradd -m -u 1000 appuser && chown -R appuser:appuser /app; \
     fi
 
+RUN mkdir -p /app/temp && chmod 777 /app/temp && \
+    mkdir -p /tmp/rarbox && chmod 777 /tmp/rarbox
+
 USER 1000
 
 EXPOSE 5050

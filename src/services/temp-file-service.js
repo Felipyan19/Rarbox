@@ -78,7 +78,7 @@ class TempFileService {
         }
       }
 
-      await fs.rmdir(sessionDir);
+      await fs.rm(sessionDir, { recursive: false });
       logger.info({ requestId, sessionDir }, 'Temp session cleaned up');
     } catch (error) {
       if (!force) {

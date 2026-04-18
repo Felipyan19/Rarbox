@@ -5,7 +5,7 @@ const { InternalError } = require('../utils/errors');
 
 class ArchiveService {
   constructor(
-    tempDir = process.env.TEMP_DIR || '/tmp/rarbox',
+    tempDir = process.env.TEMP_DIR || './temp',
     rarBin = process.env.RAR_BIN || 'rar'
   ) {
     this.tempFileService = new TempFileService(tempDir);
