@@ -5,7 +5,10 @@
       "Bash(npm install *)",
       "Bash(git add *)",
       "Bash(git commit -m 'Fase 1: Base técnica del microservicio rarbox *)",
-      "Bash(git config *)"
+      "Bash(git config *)",
+      "Bash(timeout 5 npm run dev)",
+      "Bash(npm test *)",
+      "Bash(git commit -m 'Add initial test suite for RAR endpoint *)"
     ]
   }
 }
