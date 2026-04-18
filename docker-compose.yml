@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  rarbox:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rarbox-app
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      API_KEY: ${API_KEY:-dev-api-key}
+      MAX_BODY_SIZE_MB: 5
+      REQUEST_TIMEOUT_MS: 15000
+      TEMP_DIR: /tmp/rarbox
+      LOG_LEVEL: info
+    volumes:
+      - /tmp/rarbox:/tmp/rarbox
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  reverse-proxy:
+    image: caddy:2.7-alpine
+    container_name: rarbox-proxy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - rarbox
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:

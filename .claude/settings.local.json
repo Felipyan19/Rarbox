@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git init *)",
+      "Bash(npm install *)",
+      "Bash(git add *)",
+      "Bash(git commit -m 'Fase 1: Base técnica del microservicio rarbox *)",
+      "Bash(git config *)"
+    ]
+  }
+}
