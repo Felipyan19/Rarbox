@@ -5,6 +5,8 @@ services:
     image: rarbox:latest
     container_name: rarbox-app
     restart: always
+    ports:
+      - "5050:5050"
     environment:
       NODE_ENV: production
       PORT: 5050
