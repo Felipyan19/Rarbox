@@ -12,7 +12,9 @@ const app = Fastify({
   bodyLimit: parseInt(process.env.MAX_BODY_SIZE_MB || '5', 10) * 1024 * 1024,
 });
 
-app.register(helmet);
+app.register(helmet, {
+  contentSecurityPolicy: false,
+});
 
 app.register(swagger, {
   openapi: {
@@ -39,8 +41,14 @@ app.register(swagger, {
 
 app.register(swaggerUi, {
   routePrefix: '/docs',
-  staticCSP: true,
-  transformStaticCSP: (header) => header,
+  uiConfig: {
+    deepLinking: true,
+    presets: [
+      'swagger-ui/dist/swagger-ui.js',
+      'swagger-ui/dist/swagger-ui-standalone-preset.js',
+    ],
+    layout: 'StandaloneLayout',
+  },
 });
 
 app.register(healthRoutes);
