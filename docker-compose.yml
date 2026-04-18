@@ -7,10 +7,10 @@ services:
       dockerfile: Dockerfile
     container_name: rarbox-app
     ports:
-      - "3000:3000"
+      - "5050:5050"
     environment:
       NODE_ENV: development
-      PORT: 3000
+      PORT: 5050
       API_KEY: ${API_KEY:-dev-api-key}
       MAX_BODY_SIZE_MB: 5
       REQUEST_TIMEOUT_MS: 15000
@@ -20,7 +20,7 @@ services:
       - /tmp/rarbox:/tmp/rarbox
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:5050/health', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"]
       interval: 30s
       timeout: 5s
       retries: 3

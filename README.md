@@ -16,7 +16,7 @@ cp .env.example .env
 npm run dev
 ```
 
-El servidor estará disponible en `http://localhost:3000`.
+El servidor estará disponible en `http://localhost:5050`.
 
 Endpoints:
 - `GET /health` - Estado del servicio
@@ -27,7 +27,7 @@ Endpoints:
 ### Prueba rápida
 
 ```bash
-curl -X POST http://localhost:3000/v1/archives/rar \
+curl -X POST http://localhost:5050/v1/archives/rar \
   -H "Content-Type: application/json" \
   -H "X-API-Key: change-me-in-production" \
   -d '{
@@ -54,7 +54,7 @@ docker build -t rarbox:latest .
 ### Run
 
 ```bash
-docker run -p 3000:3000 \
+docker run -p 5050:5050 \
   -e API_KEY=your-secret-key \
   rarbox:latest
 ```

@@ -1,5 +1,5 @@
 localhost:80 {
-	reverse_proxy rarbox:3000 {
+	reverse_proxy rarbox:5050 {
 		header_up X-Forwarded-For {http.request.remote.host}
 		header_up X-Forwarded-Proto {http.request.proto}
 	}
