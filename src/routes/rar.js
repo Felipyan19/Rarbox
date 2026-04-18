@@ -1,3 +1,4 @@
+const fs = require('fs');
 const addRequestId = require('../utils/request-id');
 const rateLimitHook = require('../utils/rate-limit-hook');
 const { checkApiKey } = require('../utils/auth');
@@ -117,10 +118,10 @@ async function rarRoutes(fastify, opts) {
 
       const downloadName = validated.options?.downloadName || `${archiveName}.rar`;
 
-      return reply
-        .header('Content-Type', 'application/vnd.rar')
-        .header('Content-Disposition', `attachment; filename="${downloadName}"`)
-        .sendFile(result.archivePath);
+      // Send file as stream
+      reply.header('Content-Type', 'application/vnd.rar');
+      reply.header('Content-Disposition', `attachment; filename="${downloadName}"`);
+      return reply.send(fs.createReadStream(result.archivePath));
     } catch (error) {
       if (error.message.startsWith('[')) {
         const validationErrors = JSON.parse(error.message);

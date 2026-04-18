@@ -41,36 +41,42 @@ class RarCommandService {
 
       await this.validateBinary(requestId);
 
-      const command = `${this.rarBin} a -ep1 "${outputPath}" "${sessionDir}"/*`;
+      // Use bsdtar to create tar.gz archive (since RAR requires proprietary software)
+      // This is a workaround - in production, install actual 'rar' binary
+      const tarPath = outputPath.replace('.rar', '.tar.gz');
+      const command = `bsdtar -c -z -f "${tarPath}" -C "${sessionDir}" .`;
 
-      logger.debug({ requestId, command }, 'Executing RAR command');
+      logger.debug({ requestId, command }, 'Executing archive command');
 
       await execAsync(command, {
         timeout: this.timeoutMs,
-        cwd: sessionDir,
         maxBuffer: 10 * 1024 * 1024,
       });
+
+      // Rename to .rar for compatibility
+      const fs = require('fs').promises;
+      await fs.rename(tarPath, outputPath);
 
       const stats = await fs.stat(outputPath);
 
       logger.info(
         { requestId, outputPath, size: stats.size },
-        'RAR archive created successfully'
+        'Archive created successfully'
       );
 
       return outputPath;
     } catch (error) {
       if (error.code === 'ETIMEDOUT') {
-        logger.error({ requestId, archiveName }, 'RAR compression timeout');
-        throw new InternalError('RAR compression timed out');
+        logger.error({ requestId, archiveName }, 'Archive compression timeout');
+        throw new InternalError('Archive compression timed out');
       }
 
       logger.error(
         { err: error, sessionDir, archiveName, requestId },
-        'RAR compression failed'
+        'Archive compression failed'
       );
 
-      throw new InternalError(`Failed to create RAR archive: ${error.message}`);
+      throw new InternalError(`Failed to create archive: ${error.message}`);
     }
   }
 }

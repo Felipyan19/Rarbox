@@ -4,7 +4,7 @@ WORKDIR /app
 ENV PORT=5050
 
 RUN apt-get update && apt-get install -y \
-  ugrep \
+  libarchive-tools \
   && rm -rf /var/lib/apt/lists/*
 
 COPY package*.json ./

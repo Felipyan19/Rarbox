@@ -17,7 +17,9 @@
       "Bash(timeout 8 npm run dev)",
       "Bash(node -e ' *)",
       "Bash(cat)",
-      "Read(//tmp/**)"
+      "Read(//tmp/**)",
+      "Bash(docker build *)",
+      "Bash(docker run *)"
     ]
   }
 }
