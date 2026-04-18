@@ -13,8 +13,29 @@ const app = Fastify({
 });
 
 app.register(helmet, {
-  contentSecurityPolicy: false,
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", 'data:'],
+    },
+  },
 });
+
+const swaggerServers = process.env.NODE_ENV === 'production'
+  ? [
+      {
+        url: process.env.SWAGGER_URL || '/',
+        description: 'Production server',
+      },
+    ]
+  : [
+      {
+        url: 'http://localhost:' + (process.env.PORT || '3000'),
+        description: 'Development server',
+      },
+    ];
 
 app.register(swagger, {
   openapi: {
@@ -23,6 +44,7 @@ app.register(swagger, {
       description: 'Microservicio seguro para generar archivos RAR bajo demanda',
       version: '0.1.0',
     },
+    servers: swaggerServers,
     tags: [
       { name: 'Health', description: 'Health, readiness and metrics endpoints' },
       { name: 'Archives', description: 'RAR generation endpoint' },
@@ -41,14 +63,6 @@ app.register(swagger, {
 
 app.register(swaggerUi, {
   routePrefix: '/docs',
-  uiConfig: {
-    deepLinking: true,
-    presets: [
-      'swagger-ui/dist/swagger-ui.js',
-      'swagger-ui/dist/swagger-ui-standalone-preset.js',
-    ],
-    layout: 'StandaloneLayout',
-  },
 });
 
 app.register(healthRoutes);
