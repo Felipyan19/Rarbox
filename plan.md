@@ -396,46 +396,52 @@ Ejemplo de respuesta de health:
 
 ## 15. Plan por fases
 
-### Fase 1: base técnica
+### Fase 1: base técnica ✅
 
-1. Crear estructura del proyecto.
-2. Levantar API con Fastify.
-3. Crear endpoint `POST /v1/archives/rar`.
-4. Implementar validación de entrada.
+1. ✅ Crear estructura del proyecto.
+2. ✅ Levantar API con Fastify.
+3. ✅ Crear endpoint `POST /v1/archives/rar`.
+4. ✅ Implementar validación de entrada.
 
-### Fase 2: generación de archivos
+**Estado:** Completado. Fastify + validación con Zod + rutas /health y /ready
 
-1. Crear directorio temporal.
-2. Escribir `index.html` y `readme.txt`.
-3. Sanitizar nombres.
+### Fase 2: generación de archivos ✅
 
-### Fase 3: compresión RAR
+1. ✅ Crear directorio temporal.
+2. ✅ Escribir `index.html` y `readme.txt`.
+3. ✅ Sanitizar nombres (prevención de path traversal).
 
-1. Integrar binario de compresión.
-2. Ejecutar proceso con timeout.
-3. Validar que el archivo final exista.
-4. Retornar stream al cliente.
+**Estado:** Completado. TempFileService crea sesiones aisladas por request. Tests unitarios pasando.
+
+### Fase 3: compresión RAR ✅
+
+1. ✅ Integrar binario de compresión.
+2. ✅ Ejecutar proceso con timeout.
+3. ✅ Validar que el archivo final exista.
+4. ✅ Retornar stream al cliente.
+
+**Estado:** Completado. RarCommandService abstrae ejecución del binario. Respuesta binaria con headers de descarga. 15 tests pasando.
 
 ### Fase 4: endurecimiento
 
-1. Agregar API key.
-2. Agregar rate limiting.
-3. Agregar logs estructurados.
-4. Asegurar cleanup robusto.
+1. ✅ Agregar API key (ya implementada en Fase 1).
+2. ⏳ Agregar rate limiting.
+3. ✅ Agregar logs estructurados (ya implementado).
+4. ✅ Asegurar cleanup robusto (ya implementado).
 
 ### Fase 5: Docker y release
 
-1. Crear Dockerfile.
-2. Crear `docker-compose.yml`.
-3. Agregar reverse proxy HTTPS.
-4. Probar build y ejecución end-to-end.
+1. ✅ Crear Dockerfile (ya existe).
+2. ✅ Crear `docker-compose.yml` (ya existe).
+3. ✅ Agregar reverse proxy HTTPS (Caddy configurado).
+4. ⏳ Probar build y ejecución end-to-end.
 
 ### Fase 6: pruebas
 
-1. Test unitarios de validación.
-2. Test e2e del endpoint.
-3. Test de archivo `.rar` generado.
-4. Test de errores y cleanup.
+1. ✅ Test unitarios de validación.
+2. ✅ Test e2e del endpoint.
+3. ✅ Test de archivo `.rar` generado (validado con mock).
+4. ✅ Test de errores y cleanup.
 
 ## 16. Riesgos y decisiones importantes
 
