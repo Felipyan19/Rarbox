@@ -12,7 +12,8 @@
       "Bash(git commit -m 'Fase 2: Generación de archivos temporales *)",
       "Bash(chmod +x test/bin/rar)",
       "Bash(git commit -m 'Fase 3: Compresión RAR *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(chmod +x scripts/*.sh)"
     ]
   }
 }

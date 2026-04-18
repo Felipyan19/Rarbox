@@ -429,12 +429,16 @@ Ejemplo de respuesta de health:
 3. ✅ Agregar logs estructurados (ya implementado).
 4. ✅ Asegurar cleanup robusto (ya implementado).
 
-### Fase 5: Docker y release
+### Fase 5: Docker y release ✅
 
-1. ✅ Crear Dockerfile (ya existe).
-2. ✅ Crear `docker-compose.yml` (ya existe).
-3. ✅ Agregar reverse proxy HTTPS (Caddy configurado).
-4. ⏳ Probar build y ejecución end-to-end.
+1. ✅ Crear Dockerfile (optimizado, incluye ugrep).
+2. ✅ Crear `docker-compose.yml` (desarrollo).
+3. ✅ Crear `docker-compose.prod.yml` (producción).
+4. ✅ Agregar reverse proxy HTTPS (Caddy configurado).
+5. ✅ Scripts de build (`./scripts/build.sh`).
+6. ✅ Scripts de test Docker (`./scripts/test-docker.sh`).
+7. ✅ Guía de deployment (`DEPLOYMENT.md`).
+8. ✅ Configuración de producción (`.env.production.example`).
 
 ### Fase 6: pruebas
 

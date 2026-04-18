@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  rarbox:
+    image: rarbox:latest
+    container_name: rarbox-app
+    restart: always
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      API_KEY: ${API_KEY:?API_KEY must be set}
+      MAX_BODY_SIZE_MB: ${MAX_BODY_SIZE_MB:-5}
+      REQUEST_TIMEOUT_MS: ${REQUEST_TIMEOUT_MS:-15000}
+      RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-10}
+      RATE_LIMIT_WINDOW_MS: ${RATE_LIMIT_WINDOW_MS:-60000}
+      TEMP_DIR: /tmp/rarbox
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - /tmp/rarbox:/tmp/rarbox
+      - rarbox_logs:/var/log/rarbox
+    networks:
+      - rarbox-network
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  reverse-proxy:
+    image: caddy:2.7-alpine
+    container_name: rarbox-proxy
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile.prod:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - rarbox-network
+    depends_on:
+      - rarbox
+    environment:
+      ACME_AGREE: "true"
+
+networks:
+  rarbox-network:
+    driver: bridge
+
+volumes:
+  rarbox_logs:
+  caddy_data:
+  caddy_config:

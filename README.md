@@ -114,11 +114,30 @@ Ver `.env.example` para la lista completa.
 ## Fases de Implementación
 
 - [x] Fase 1: Base técnica (Fastify + rutas + validación)
-- [ ] Fase 2: Generación de archivos temporales
-- [ ] Fase 3: Compresión RAR
-- [ ] Fase 4: Endurecimiento (rate limiting, logs avanzados)
-- [ ] Fase 5: Docker y release
-- [ ] Fase 6: Tests
+- [x] Fase 2: Generación de archivos temporales
+- [x] Fase 3: Compresión RAR
+- [x] Fase 4: Endurecimiento (rate limiting, métricas)
+- [x] Fase 5: Docker y release
+- [x] Fase 6: Tests (27 tests pasando)
+
+## Deployment
+
+Ver [DEPLOYMENT.md](DEPLOYMENT.md) para instrucciones completas.
+
+### Quick Deploy
+
+```bash
+./scripts/build.sh latest
+cp .env.production.example .env.production
+# Edit .env.production with API_KEY
+docker-compose -f docker-compose.prod.yml up -d
+```
+
+### Test Build
+
+```bash
+./scripts/test-docker.sh
+```
 
 ## Licencia
 

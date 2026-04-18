@@ -1,0 +1,41 @@
+# Caddyfile for production
+# Replace DOMAIN with your actual domain
+
+(common_headers) {
+  header -Server
+  header X-Content-Type-Options nosniff
+  header X-Frame-Options DENY
+  header X-XSS-Protection "1; mode=block"
+  header Referrer-Policy "strict-origin-when-cross-origin"
+  header Permissions-Policy "geolocation=(), microphone=(), camera=()"
+}
+
+rarbox.example.com {
+  import common_headers
+
+  log {
+    output stdout
+    format json
+  }
+
+  reverse_proxy rarbox:3000 {
+    header_up X-Forwarded-For {http.request.remote.host}
+    header_up X-Forwarded-Proto {http.request.proto}
+    header_up X-Forwarded-Host {http.request.host}
+
+    # Timeout for large RAR files
+    transport http {
+      dial_timeout 10s
+      response_header_timeout 30s
+    }
+  }
+
+  # Gzip compression
+  encode gzip
+
+  # Health endpoint (no logging)
+  @health path /health /ready
+  log @health {
+    output discard
+  }
+}
