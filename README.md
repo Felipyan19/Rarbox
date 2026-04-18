@@ -23,6 +23,8 @@ Endpoints:
 - `GET /ready` - Readiness probe
 - `GET /metrics` - Métricas de servicio (requests, archives, success rate)
 - `POST /v1/archives/rar` - Genera un archivo RAR (requiere API key, sujeto a rate limit)
+- `GET /docs` - Swagger UI (OpenAPI)
+- `GET /docs/json` - OpenAPI JSON
 
 ### Prueba rápida
 

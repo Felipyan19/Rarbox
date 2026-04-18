@@ -6,7 +6,22 @@ const metricsService = new MetricsService();
 async function healthRoutes(fastify) {
   fastify.addHook('preHandler', addRequestId);
 
-  fastify.get('/health', async (request, reply) => {
+  fastify.get('/health', {
+    schema: {
+      tags: ['Health'],
+      summary: 'Service health check',
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            status: { type: 'string' },
+            service: { type: 'string' },
+            timestamp: { type: 'string' },
+          },
+        },
+      },
+    },
+  }, async (request, reply) => {
     return {
       status: 'ok',
       service: 'rarbox',
@@ -14,7 +29,22 @@ async function healthRoutes(fastify) {
     };
   });
 
-  fastify.get('/ready', async (request, reply) => {
+  fastify.get('/ready', {
+    schema: {
+      tags: ['Health'],
+      summary: 'Service readiness check',
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            status: { type: 'string' },
+            service: { type: 'string' },
+            timestamp: { type: 'string' },
+          },
+        },
+      },
+    },
+  }, async (request, reply) => {
     return {
       status: 'ready',
       service: 'rarbox',
@@ -22,10 +52,20 @@ async function healthRoutes(fastify) {
     };
   });
 
-  fastify.get('/metrics', async (request, reply) => {
+  fastify.get('/metrics', {
+    schema: {
+      tags: ['Health'],
+      summary: 'Service metrics',
+      response: {
+        200: {
+          type: 'object',
+          additionalProperties: true,
+        },
+      },
+    },
+  }, async (request, reply) => {
     return metricsService.getMetrics();
   });
 }
 
 module.exports = { healthRoutes, metricsService };
-

@@ -13,7 +13,56 @@ async function rarRoutes(fastify, opts) {
   fastify.addHook('preHandler', addRequestId);
   fastify.addHook('preHandler', rateLimitHook);
 
-  fastify.post('/v1/archives/rar', async (request, reply) => {
+  fastify.post('/v1/archives/rar', {
+    schema: {
+      tags: ['Archives'],
+      summary: 'Generate a RAR archive from HTML and text content',
+      security: [{ ApiKeyAuth: [] }],
+      body: {
+        type: 'object',
+        required: ['archiveName', 'files'],
+        properties: {
+          archiveName: { type: 'string' },
+          files: {
+            type: 'object',
+            required: ['html', 'text'],
+            properties: {
+              html: {
+                type: 'object',
+                required: ['content'],
+                properties: {
+                  filename: { type: 'string', default: 'index.html' },
+                  content: { type: 'string' },
+                },
+              },
+              text: {
+                type: 'object',
+                required: ['content'],
+                properties: {
+                  filename: { type: 'string', default: 'content.txt' },
+                  content: { type: 'string' },
+                },
+              },
+            },
+          },
+          options: {
+            type: 'object',
+            properties: {
+              compressionLevel: { type: 'integer', minimum: 0, maximum: 5, default: 3 },
+              downloadName: { type: 'string' },
+            },
+          },
+        },
+      },
+      response: {
+        200: {
+          type: 'string',
+          format: 'binary',
+          description: 'RAR archive file',
+        },
+      },
+    },
+  }, async (request, reply) => {
     const startTime = Date.now();
     let sessionDir;
 
