@@ -1,6 +1,8 @@
 # rarbox
 
-Microservicio HTTP seguro para generar archivos RAR bajo demanda.
+Stack de microservicios:
+- `rarbox`: generación segura de archivos RAR
+- `emailprep-service`: preparación de entregables de email para empaquetado
 
 ## Desarrollo
 
@@ -16,15 +18,23 @@ cp .env.example .env
 npm run dev
 ```
 
-El servidor estará disponible en `http://localhost:5050`.
+El servidor estará disponible en:
+- `http://localhost:5050` (`rarbox`)
+- `http://localhost:5051` (`emailprep-service`)
 
 Endpoints:
 - `GET /health` - Estado del servicio
 - `GET /ready` - Readiness probe
 - `GET /metrics` - Métricas de servicio (requests, archives, success rate)
 - `POST /v1/archives/rar` - Genera un archivo RAR (requiere API key, sujeto a rate limit)
+- `POST /v1/archives/rar/prepare` - Recibe payload tipo emailprep (`artifact_name`, `delivery_type`, `html`, `images_catalog`) y devuelve RAR en un paso
 - `GET /docs` - Swagger UI (OpenAPI)
 - `GET /docs/json` - OpenAPI JSON
+
+Emailprep endpoints:
+- `POST /v1/prepare` - Prepara `html/txt/images` para empaquetado RAR
+- `GET /health` - Estado del servicio emailprep
+- `GET /docs` - Swagger UI de emailprep
 
 ### Prueba rápida
 
@@ -44,6 +54,21 @@ curl -X POST http://localhost:5050/v1/archives/rar \
     }
   }'
 ```
+
+```bash
+curl -X POST http://localhost:5050/v1/archives/rar/prepare \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: change-me-in-production" \
+  -d '{
+    "artifact_name": "mi_campana",
+    "delivery_type": "centurion",
+    "html": "<html><body><h1>Hola</h1><p>Texto base</p></body></html>",
+    "images_catalog": []
+  }'
+```
+
+`images_catalog` puede enviarse vacío (`[]`) u omitirse. En ese caso, `rarbox` intentará resolver imágenes desde URLs encontradas en el HTML, incluirlas en el `.rar` y agregar sus URLs al `.txt`.
+`delivery_type` acepta cualquier string: solo `centurion` usa el formato centurion; cualquier otro valor se procesa como `standard`.
 
 ## Docker
 
@@ -67,6 +92,11 @@ docker run -p 5050:5050 \
 docker-compose up
 ```
 
+Servicios expuestos:
+- `rarbox`: `http://localhost:5050`
+- `emailprep-service`: `http://localhost:5051`
+- `caddy`: `http://localhost` con proxy a `rarbox` y prefijo `/emailprep/*` hacia `emailprep-service`
+
 ## Estructura del Proyecto
 
 ```
@@ -79,7 +109,8 @@ rarbox/
   test/               # Tests e2e y unitarios
   Dockerfile          # Imagen Docker
   docker-compose.yml  # Stack local
-  plan.md             # Especificación del proyecto
+  EMAILPREP-PLAN.md   # Especificación de emailprep-service
+  emailprep-service/  # Microservicio de preparación de entregables
 ```
 
 ## Variables de Entorno
@@ -132,8 +163,9 @@ Ver [DEPLOYMENT.md](DEPLOYMENT.md) para instrucciones completas.
 
 ```bash
 ./scripts/build.sh latest
+docker build -t emailprep-service:latest ./emailprep-service
 cp .env.production.example .env.production
-# Edit .env.production with API_KEY
+# Edit .env.production with API_KEY and EMAILPREP_API_KEY
 docker-compose -f docker-compose.prod.yml up -d
 ```
 

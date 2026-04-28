@@ -26,6 +26,30 @@ services:
       retries: 3
       start_period: 10s
 
+  emailprep:
+    build:
+      context: ./emailprep-service
+      dockerfile: Dockerfile
+    container_name: emailprep-app
+    ports:
+      - "5051:5051"
+    environment:
+      NODE_ENV: development
+      PORT: 5051
+      API_KEY: ${EMAILPREP_API_KEY:-dev-api-key}
+      MAX_BODY_SIZE_MB: 5
+      RATE_LIMIT_MAX: 10
+      RATE_LIMIT_WINDOW_MS: 60000
+      LOG_LEVEL: info
+      SWAGGER_URL: ${EMAILPREP_SWAGGER_URL:-http://localhost:5051}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:5051/health', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
   reverse-proxy:
     image: caddy:2.7-alpine
     container_name: rarbox-proxy
@@ -38,6 +62,7 @@ services:
       - caddy_config:/config
     depends_on:
       - rarbox
+      - emailprep
     restart: unless-stopped
 
 volumes:

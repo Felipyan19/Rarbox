@@ -6,11 +6,11 @@ const { InternalError } = require('../utils/errors');
 class ArchiveService {
   constructor(
     tempDir = process.env.TEMP_DIR || './temp',
-    rarBin = process.env.RAR_BIN || 'rar'
+    zipBin = process.env.ZIP_BIN || 'zip'
   ) {
     this.tempFileService = new TempFileService(tempDir);
     this.rarCommandService = new RarCommandService(
-      rarBin,
+      zipBin,
       parseInt(process.env.REQUEST_TIMEOUT_MS || '15000', 10)
     );
   }
@@ -38,6 +38,17 @@ class ArchiveService {
         requestId
       );
 
+      if (Array.isArray(files.additional)) {
+        for (const file of files.additional) {
+          await this.tempFileService.writeFile(
+            sessionDir,
+            file.filename,
+            file.content,
+            requestId
+          );
+        }
+      }
+
       logger.info({ requestId, sessionDir }, 'Files written to temporary directory');
 
       archivePath = await this.rarCommandService.createArchive(
@@ -55,6 +66,9 @@ class ArchiveService {
         files: {
           html: files.html.filename,
           text: files.text.filename,
+          additional: Array.isArray(files.additional)
+            ? files.additional.map((f) => f.filename)
+            : [],
         },
       };
     } catch (error) {

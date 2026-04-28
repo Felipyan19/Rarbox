@@ -30,11 +30,24 @@ rarbox.example.com {
     }
   }
 
+  handle_path /emailprep/* {
+    reverse_proxy emailprep:5051 {
+      header_up X-Forwarded-For {http.request.remote.host}
+      header_up X-Forwarded-Proto {http.request.proto}
+      header_up X-Forwarded-Host {http.request.host}
+
+      transport http {
+        dial_timeout 10s
+        response_header_timeout 30s
+      }
+    }
+  }
+
   # Gzip compression
   encode gzip
 
   # Health endpoint (no logging)
-  @health path /health /ready
+  @health path /health /ready /emailprep/health /emailprep/ready
   log @health {
     output discard
   }

@@ -46,8 +46,10 @@ class TempFileService {
     }
 
     try {
+      const dirPath = path.dirname(filePath);
+      await fs.mkdir(dirPath, { recursive: true, mode: 0o700 });
       await fs.writeFile(filePath, content, { flag: 'w', mode: 0o600 });
-      logger.debug({ requestId, filename, size: content.length }, 'File written to temp directory');
+      logger.debug({ requestId, filename, size: Buffer.byteLength(content) }, 'File written to temp directory');
       return filePath;
     } catch (error) {
       logger.error({ err: error, filePath, requestId }, 'Failed to write file');

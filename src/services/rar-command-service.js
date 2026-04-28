@@ -8,43 +8,41 @@ const { ServiceUnavailableError, InternalError } = require('../utils/errors');
 const execAsync = promisify(exec);
 
 class RarCommandService {
-  constructor(rarBin = process.env.RAR_BIN || 'rar', timeoutMs = 15000) {
+  constructor(rarBin = process.env.ZIP_BIN || 'zip', timeoutMs = 15000) {
     this.rarBin = rarBin;
     this.timeoutMs = timeoutMs;
   }
 
   async validateBinary(requestId) {
     try {
-      logger.debug({ requestId, rarBin: this.rarBin }, 'Validating RAR binary');
+      logger.debug({ requestId, zipBin: this.rarBin }, 'Validating ZIP binary');
       await execAsync(`${this.rarBin} --version`, { timeout: 5000 });
-      logger.info({ requestId, rarBin: this.rarBin }, 'RAR binary validated');
+      logger.info({ requestId, zipBin: this.rarBin }, 'ZIP binary validated');
       return true;
     } catch (error) {
       logger.error(
-        { err: error, rarBin: this.rarBin, requestId },
-        'RAR binary validation failed'
+        { err: error, zipBin: this.rarBin, requestId },
+        'ZIP binary validation failed'
       );
       throw new ServiceUnavailableError(
-        `RAR binary not available at ${this.rarBin}`
+        `ZIP binary not available at ${this.rarBin}`
       );
     }
   }
 
   async createArchive(sessionDir, archiveName, requestId) {
-    const outputPath = path.join(sessionDir, `${archiveName}.rar`);
+    const outputPath = path.join(sessionDir, `${archiveName}.zip`);
 
     try {
       logger.info(
         { requestId, sessionDir, archiveName, outputPath },
-        'Starting RAR compression'
+        'Starting ZIP compression'
       );
 
       await this.validateBinary(requestId);
 
-      // Use bsdtar to create tar.gz archive (since RAR requires proprietary software)
-      // This is a workaround - in production, install actual 'rar' binary
-      const tarPath = outputPath.replace('.rar', '.tar.gz');
-      const command = `bsdtar -c -z -f "${tarPath}" -C "${sessionDir}" .`;
+      // Use zip to create zip archive
+      const command = `cd "${sessionDir}" && zip -r -q "${outputPath}" .`;
 
       logger.debug({ requestId, command }, 'Executing archive command');
 
@@ -52,10 +50,6 @@ class RarCommandService {
         timeout: this.timeoutMs,
         maxBuffer: 10 * 1024 * 1024,
       });
-
-      // Rename to .rar for compatibility
-      const fs = require('fs').promises;
-      await fs.rename(tarPath, outputPath);
 
       const stats = await fs.stat(outputPath);
 

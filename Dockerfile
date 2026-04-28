@@ -4,7 +4,9 @@ WORKDIR /app
 ENV PORT=5050
 
 RUN apt-get update && apt-get install -y \
-  libarchive-tools \
+  zip \
+  unzip \
+  wget \
   && rm -rf /var/lib/apt/lists/*
 
 COPY package*.json ./

@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   rarbox:
-    image: rarbox:latest
+    image: rarbox-rarbox:latest
     container_name: rarbox-app
     restart: always
     ports:
@@ -18,6 +18,7 @@ services:
       TEMP_DIR: /tmp/rarbox
       LOG_LEVEL: ${LOG_LEVEL:-info}
       SWAGGER_URL: ${SWAGGER_URL:-http://149.130.164.187:5050}
+      ZIP_BIN: ${ZIP_BIN:-zip}
     volumes:
       - /tmp/rarbox:/tmp/rarbox
       - rarbox_logs:/var/log/rarbox
@@ -25,6 +26,32 @@ services:
       - rarbox-network
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:5050/health', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  emailprep:
+    image: rarbox-emailprep:latest
+    container_name: emailprep-app
+    restart: always
+    ports:
+      - "5051:5051"
+    environment:
+      NODE_ENV: production
+      PORT: 5051
+      API_KEY: ${EMAILPREP_API_KEY:?EMAILPREP_API_KEY must be set}
+      MAX_BODY_SIZE_MB: ${EMAILPREP_MAX_BODY_SIZE_MB:-5}
+      RATE_LIMIT_MAX: ${EMAILPREP_RATE_LIMIT_MAX:-10}
+      RATE_LIMIT_WINDOW_MS: ${EMAILPREP_RATE_LIMIT_WINDOW_MS:-60000}
+      LOG_LEVEL: ${EMAILPREP_LOG_LEVEL:-info}
+      SWAGGER_URL: ${EMAILPREP_SWAGGER_URL:-http://149.130.164.187:5051}
+    volumes:
+      - emailprep_logs:/var/log/emailprep
+    networks:
+      - rarbox-network
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:5051/health', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -45,6 +72,7 @@ services:
       - rarbox-network
     depends_on:
       - rarbox
+      - emailprep
     environment:
       ACME_AGREE: "true"
 
@@ -54,5 +82,6 @@ networks:
 
 volumes:
   rarbox_logs:
+  emailprep_logs:
   caddy_data:
   caddy_config:
