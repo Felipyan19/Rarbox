@@ -26,11 +26,17 @@ const extractImageRefs = (html, config) => {
   const refs = [];
   const $ = cheerio.load(html, { decodeEntities: false });
 
+  // Extract image references with their positions in HTML to maintain order
+  const foundRefs = [];
+
   if (config.parse_img_src) {
     $('img').each((_, el) => {
       const src = ($(el).attr('src') || '').trim();
       if (src) {
-        refs.push(src);
+        // Get the element's position in the original HTML
+        const htmlStr = $.html(el);
+        const position = html.indexOf(htmlStr);
+        foundRefs.push({ position: position >= 0 ? position : 0, ref: src });
       }
     });
   }
@@ -38,11 +44,19 @@ const extractImageRefs = (html, config) => {
   if (config.parse_inline_background_images) {
     $('[style]').each((_, el) => {
       const style = $(el).attr('style') || '';
-      refs.push(...extractBackgroundRefs(style));
+      const bgRefs = extractBackgroundRefs(style);
+      const htmlStr = $.html(el);
+      const position = html.indexOf(htmlStr);
+      bgRefs.forEach(ref => {
+        foundRefs.push({ position: position >= 0 ? position : 0, ref });
+      });
     });
   }
 
-  return refs;
+  // Sort by position to maintain top-to-bottom, left-to-right order
+  foundRefs.sort((a, b) => a.position - b.position);
+
+  return foundRefs.map(item => item.ref);
 };
 
 const rewriteBackgroundStyle = (styleValue, replacementLookup) => {

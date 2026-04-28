@@ -30,6 +30,7 @@ const resolve = (htmlRefs, catalog, reportUnusedCatalogImages = true) => {
   const usedCatalogIndexes = new Set();
   const missingImages = [];
   const refMatches = new Map();
+  const resolvedImagesInOrder = [];
 
   for (const ref of htmlRefs) {
     const cleanRef = (ref || '').trim();
@@ -59,14 +60,45 @@ const resolve = (htmlRefs, catalog, reportUnusedCatalogImages = true) => {
 
     usedCatalogIndexes.add(matchIndex);
 
+    const catalogImage = catalog[matchIndex];
     const previous = refMatches.get(cleanRef) || [];
-    previous.push(catalog[matchIndex].filename);
+    previous.push(catalogImage.filename);
     refMatches.set(cleanRef, previous);
+    resolvedImagesInOrder.push({ ref: cleanRef, image: catalogImage });
   }
 
-  const usedImages = Array.from(usedCatalogIndexes)
-    .sort((a, b) => a - b)
-    .map((index) => catalog[index]);
+  // Rename images sequentially based on HTML order
+  const sequentialRefMatches = new Map();
+  const sequentialImages = [];
+  const seenRefs = new Set();
+  let sequentialCounter = 1;
+
+  for (let i = 0; i < resolvedImagesInOrder.length; i++) {
+    const { ref, image } = resolvedImagesInOrder[i];
+
+    // Skip duplicate refs (same image referenced multiple times)
+    if (seenRefs.has(ref)) {
+      continue;
+    }
+    seenRefs.add(ref);
+
+    // Extract extension from original filename
+    const extMatch = /\.([a-z0-9]{1,8})$/i.exec(image.filename);
+    const ext = extMatch ? `.${extMatch[1]}` : '.jpg';
+
+    // Create sequential name: imagen_1.jpg, imagen_2.png, etc.
+    const sequentialName = `imagen_${sequentialCounter}${ext}`;
+    sequentialCounter++;
+
+    // Create new image object with sequential name
+    const sequentialImage = {
+      ...image,
+      filename: sequentialName,
+    };
+
+    sequentialImages.push(sequentialImage);
+    sequentialRefMatches.set(ref, [sequentialName]);
+  }
 
   const unusedCatalogImages = reportUnusedCatalogImages
     ? catalog
@@ -75,11 +107,11 @@ const resolve = (htmlRefs, catalog, reportUnusedCatalogImages = true) => {
     : [];
 
   return {
-    used_images: usedImages,
+    used_images: sequentialImages,
     missing_images: missingImages,
     duplicated_filenames: duplicatedFilenames,
     unused_catalog_images: unusedCatalogImages,
-    ref_matches: refMatches,
+    ref_matches: sequentialRefMatches,
   };
 };
 

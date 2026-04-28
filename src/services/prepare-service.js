@@ -45,30 +45,43 @@ const stripTags = (value) => normalizeWhitespace(decodeEntities(value.replace(/<
 
 const extractImageRefs = (html, config) => {
   const refs = [];
+  const imgRegex = /<img\b[^>]*\bsrc\s*=\s*(['"])(.*?)\1/ig;
+  const styleRegex = /style\s*=\s*(['"])([^'"]*background-image\s*:\s*url\([^)]+\)[^'"]*)\1/ig;
+
+  // Extract all image references with their positions
+  const foundRefs = [];
 
   if (config.parse_img_src) {
-    const imgRegex = /<img\b[^>]*\bsrc\s*=\s*(['"])(.*?)\1/ig;
-    let match = imgRegex.exec(html);
-    while (match) {
+    let match;
+    while ((match = imgRegex.exec(html)) !== null) {
       if (match[2]) {
-        refs.push(match[2].trim());
+        foundRefs.push({
+          position: match.index,
+          ref: match[2].trim(),
+        });
       }
-      match = imgRegex.exec(html);
     }
   }
 
   if (config.parse_inline_background_images) {
-    let match = BACKGROUND_IMAGE_PATTERN.exec(html);
-    while (match) {
-      if (match[2]) {
-        refs.push(match[2].trim());
+    let match;
+    while ((match = styleRegex.exec(html)) !== null) {
+      const styleContent = match[2];
+      const bgMatch = BACKGROUND_IMAGE_PATTERN.exec(styleContent);
+      if (bgMatch && bgMatch[2]) {
+        foundRefs.push({
+          position: match.index,
+          ref: bgMatch[2].trim(),
+        });
       }
-      match = BACKGROUND_IMAGE_PATTERN.exec(html);
+      BACKGROUND_IMAGE_PATTERN.lastIndex = 0;
     }
-    BACKGROUND_IMAGE_PATTERN.lastIndex = 0;
   }
 
-  return refs;
+  // Sort by position in HTML to maintain top-to-bottom, left-to-right order
+  foundRefs.sort((a, b) => a.position - b.position);
+
+  return foundRefs.map(item => item.ref);
 };
 
 const normalizeRefForBasename = (ref) => {
@@ -101,6 +114,7 @@ const resolveImages = (htmlRefs, catalog, reportUnusedCatalogImages = true) => {
   const refMatches = new Map();
   const autoImagesByRef = new Map();
   const usedFilenames = new Set(catalog.map((item) => item.filename));
+  const resolvedImagesInOrder = [];
 
   for (const ref of htmlRefs) {
     const cleanRef = (ref || '').trim();
@@ -138,15 +152,17 @@ const resolveImages = (htmlRefs, catalog, reportUnusedCatalogImages = true) => {
         }
 
         usedFilenames.add(candidate);
-        autoImagesByRef.set(cleanRef, {
+        const autoImage = {
           filename: candidate,
           source: {
             type: 'url',
             value: cleanRef,
           },
-        });
+        };
+        autoImagesByRef.set(cleanRef, autoImage);
 
         refMatches.set(cleanRef, [candidate]);
+        resolvedImagesInOrder.push({ ref: cleanRef, image: autoImage });
         continue;
       }
 
@@ -155,16 +171,45 @@ const resolveImages = (htmlRefs, catalog, reportUnusedCatalogImages = true) => {
     }
 
     usedCatalogIndexes.add(matchIndex);
+    const catalogImage = catalog[matchIndex];
     const previous = refMatches.get(cleanRef) || [];
-    previous.push(catalog[matchIndex].filename);
+    previous.push(catalogImage.filename);
     refMatches.set(cleanRef, previous);
+    resolvedImagesInOrder.push({ ref: cleanRef, image: catalogImage });
   }
 
-  const usedImagesFromCatalog = Array.from(usedCatalogIndexes)
-    .sort((a, b) => a - b)
-    .map((index) => catalog[index]);
-  const autoImages = Array.from(autoImagesByRef.values());
-  const usedImages = [...usedImagesFromCatalog, ...autoImages];
+  // Rename images sequentially based on HTML order
+  const sequentialRefMatches = new Map();
+  const sequentialImages = [];
+  const seenRefs = new Set();
+  let sequentialCounter = 1;
+
+  for (let i = 0; i < resolvedImagesInOrder.length; i++) {
+    const { ref, image } = resolvedImagesInOrder[i];
+
+    // Skip duplicate refs (same image referenced multiple times)
+    if (seenRefs.has(ref)) {
+      continue;
+    }
+    seenRefs.add(ref);
+
+    // Extract extension from original filename
+    const extMatch = /\.([a-z0-9]{1,8})$/i.exec(image.filename);
+    const ext = extMatch ? `.${extMatch[1]}` : '.jpg';
+
+    // Create sequential name: imagen_1.jpg, imagen_2.png, etc.
+    const sequentialName = `imagen_${sequentialCounter}${ext}`;
+    sequentialCounter++;
+
+    // Create new image object with sequential name
+    const sequentialImage = {
+      ...image,
+      filename: sequentialName,
+    };
+
+    sequentialImages.push(sequentialImage);
+    sequentialRefMatches.set(ref, [sequentialName]);
+  }
 
   const unusedCatalogImages = reportUnusedCatalogImages
     ? catalog
@@ -173,11 +218,11 @@ const resolveImages = (htmlRefs, catalog, reportUnusedCatalogImages = true) => {
     : [];
 
   return {
-    used_images: usedImages,
+    used_images: sequentialImages,
     missing_images: missingImages,
     duplicated_filenames: duplicatedFilenames,
     unused_catalog_images: unusedCatalogImages,
-    ref_matches: refMatches,
+    ref_matches: sequentialRefMatches,
   };
 };
 
