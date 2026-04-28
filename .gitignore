@@ -15,3 +15,11 @@ coverage/
 .claude/
 /tmp
 /temp
+
+# Test and temporary files
+*.rar
+test-*.json
+test-*.js
+test-*.sh
+send-to-*.js
+.codex
