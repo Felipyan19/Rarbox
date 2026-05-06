@@ -5,7 +5,7 @@ const logger = require('../utils/logger');
 const { InternalError } = require('../utils/errors');
 
 class TempFileService {
-  constructor(tempDir = '/tmp/rarbox') {
+  constructor(tempDir = '/tmp/utils-amex') {
     this.tempDir = tempDir;
   }
 

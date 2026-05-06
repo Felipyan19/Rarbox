@@ -5,6 +5,7 @@ const swaggerUi = require('@fastify/swagger-ui');
 const logger = require('./utils/logger');
 const { healthRoutes, metricsService } = require('./routes/health');
 const rarRoutes = require('./routes/rar');
+const pdfRoutes = require('./routes/pdf');
 const errorHandler = require('./utils/error-handler');
 
 const app = Fastify({
@@ -50,14 +51,15 @@ const swaggerServers = configuredSwaggerUrl
 app.register(swagger, {
   openapi: {
     info: {
-      title: 'Rarbox API',
-      description: 'Microservicio seguro para generar archivos RAR bajo demanda',
+      title: 'Utils AMEX API',
+      description: 'Microservicio de utilidades AMEX para Archives, PDF y Health',
       version: '0.1.0',
     },
     servers: swaggerServers,
     tags: [
-      { name: 'Health', description: 'Health, readiness and metrics endpoints' },
-      { name: 'Archives', description: 'RAR generation endpoint' },
+      { name: 'Archives', description: 'Generacion y preparacion de archivos comprimidos' },
+      { name: 'PDF', description: 'Compresion y extraccion de PDF' },
+      { name: 'Health', description: 'Health, readiness y metrics del servicio' },
     ],
     components: {
       securitySchemes: {
@@ -76,11 +78,15 @@ app.register(swaggerUi, {
   uiConfig: {
     layout: 'BaseLayout',
     deepLinking: true,
+    docExpansion: 'list',
+    tagsSorter: 'alpha',
+    operationsSorter: 'alpha',
   },
 });
 
 app.register(healthRoutes);
 app.register(rarRoutes);
+app.register(pdfRoutes);
 
 app.addHook('onResponse', (request, reply, done) => {
   metricsService.recordRequest(reply.statusCode);

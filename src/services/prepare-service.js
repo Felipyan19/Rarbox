@@ -305,47 +305,98 @@ const dedupeBlocks = (blocks, preserveCase) => {
   return deduped;
 };
 
-const generateTxtFromHtml = (html, deliveryType, config) => {
-  const blocks = [];
-  let working = html;
+const extractCommentDelimitedSections = (html) => {
+  const sections = [];
+  const markerRegex = /<!--\s*(START|END)\s*:\s*([\s\S]*?)\s*-->/ig;
+  let startMatch = null;
+  let markerMatch = markerRegex.exec(html);
 
+  while (markerMatch) {
+    const markerType = (markerMatch[1] || '').toUpperCase();
+    if (markerType === 'START') {
+      startMatch = markerMatch;
+    } else if (markerType === 'END' && startMatch) {
+      const startTagEndIndex = startMatch.index + startMatch[0].length;
+      const sectionHtml = html.slice(startTagEndIndex, markerMatch.index);
+      sections.push({
+        label: normalizeWhitespace(startMatch[2] || ''),
+        html: sectionHtml,
+      });
+      startMatch = null;
+    }
+    markerMatch = markerRegex.exec(html);
+  }
+
+  return sections;
+};
+
+const extractTxtSectionsFromHtmlSegment = (htmlSegment, deliveryType, config) => {
+  const sections = {
+    visibleText: [],
+    links: [],
+    imageTexts: [],
+    legals: [],
+  };
+
+  // Extract visible text first (main content section)
+  if (config.include_visible_text_in_txt) {
+    let textWorking = htmlSegment;
+    // Remove links, comments, scripts, styles
+    textWorking = textWorking
+      .replace(/<a\b[^>]*\bhref\s*=\s*(['"])(.*?)\1[^>]*>([\s\S]*?)<\/a>/ig, ' ')
+      .replace(/<!--[\s\S]*?-->/g, ' ')
+      .replace(/<script[\s\S]*?<\/script>/ig, ' ')
+      .replace(/<style[\s\S]*?<\/style>/ig, ' ')
+      .replace(/<[^>]*>/g, '\n');
+
+    const lines = decodeEntities(textWorking)
+      .split('\n')
+      .map((line) => normalizeWhitespace(line))
+      .filter(Boolean);
+
+    sections.visibleText.push(...lines);
+  }
+
+  // Extract links
   const linkRegex = /<a\b[^>]*\bhref\s*=\s*(['"])(.*?)\1[^>]*>([\s\S]*?)<\/a>/ig;
-  let linkMatch = linkRegex.exec(working);
+  let linkMatch = linkRegex.exec(htmlSegment);
   while (linkMatch) {
     const href = normalizeWhitespace(linkMatch[2] || '');
     const text = stripTags(linkMatch[3] || '');
     if (text || href) {
-      blocks.push(formatLink(text, href, deliveryType, config));
+      sections.links.push(formatLink(text, href, deliveryType, config));
     }
-    linkMatch = linkRegex.exec(working);
+    linkMatch = linkRegex.exec(htmlSegment);
   }
 
+  // Extract image alt and title texts
   if (config.include_alt_text_in_txt || config.include_image_text_in_txt) {
     const imgRegex = /<img\b[^>]*>/ig;
-    let imgMatch = imgRegex.exec(working);
+    let imgMatch = imgRegex.exec(htmlSegment);
     while (imgMatch) {
       const tag = imgMatch[0];
       if (config.include_alt_text_in_txt) {
         const altMatch = /alt\s*=\s*(['"])(.*?)\1/i.exec(tag);
         const alt = normalizeWhitespace(decodeEntities(altMatch?.[2] || ''));
         if (alt) {
-          blocks.push(alt);
+          sections.imageTexts.push(alt);
         }
       }
       if (config.include_image_text_in_txt) {
         const titleMatch = /title\s*=\s*(['"])(.*?)\1/i.exec(tag);
         const title = normalizeWhitespace(decodeEntities(titleMatch?.[2] || ''));
         if (title) {
-          blocks.push(title);
+          sections.imageTexts.push(title);
         }
       }
-      imgMatch = imgRegex.exec(working);
+      imgMatch = imgRegex.exec(htmlSegment);
     }
   }
 
+  // Extract legal texts
   if (config.include_legals_in_txt) {
     const legalRegex = /<([a-z0-9]+)\b([^>]*)>([\s\S]*?)<\/\1>/ig;
-    let legalMatch = legalRegex.exec(working);
+    let legalMatch = legalRegex.exec(htmlSegment);
     while (legalMatch) {
       const attrs = legalMatch[2] || '';
       const cls = /class\s*=\s*(['"])(.*?)\1/i.exec(attrs)?.[2] || '';
@@ -353,37 +404,70 @@ const generateTxtFromHtml = (html, deliveryType, config) => {
       if (LEGAL_PATTERN.test(cls) || LEGAL_PATTERN.test(id)) {
         const legalText = stripTags(legalMatch[3] || '');
         if (legalText) {
-          blocks.push(legalText);
+          sections.legals.push(legalText);
         }
       }
-      legalMatch = legalRegex.exec(working);
+      legalMatch = legalRegex.exec(htmlSegment);
     }
   }
 
-  if (config.include_visible_text_in_txt) {
-    // Remove links first since they're already processed and added to blocks
-    working = working
-      .replace(/<a\b[^>]*\bhref\s*=\s*(['"])(.*?)\1[^>]*>([\s\S]*?)<\/a>/ig, ' ')
-      .replace(/<!--[\s\S]*?-->/g, ' ')
-      .replace(/<script[\s\S]*?<\/script>/ig, ' ')
-      .replace(/<style[\s\S]*?<\/style>/ig, ' ')
-      .replace(/<[^>]*>/g, '\n');
+  return sections;
+};
 
-    const lines = decodeEntities(working)
-      .split('\n')
-      .map((line) => normalizeWhitespace(line))
-      .filter(Boolean);
+const generateTxtFromHtml = (html, deliveryType, config) => {
+  // Separate content by text categories
+  const sections = {
+    visibleText: [],
+    links: [],
+    imageTexts: [],
+    legals: [],
+  };
 
-    blocks.push(...lines);
+  const commentSections = extractCommentDelimitedSections(html);
+  const htmlSegments = commentSections.length > 0
+    ? commentSections.map((section) => section.html)
+    : [html];
+
+  for (const htmlSegment of htmlSegments) {
+    const extracted = extractTxtSectionsFromHtmlSegment(htmlSegment, deliveryType, config);
+    sections.visibleText.push(...extracted.visibleText);
+    sections.links.push(...extracted.links);
+    sections.imageTexts.push(...extracted.imageTexts);
+    sections.legals.push(...extracted.legals);
   }
 
-  const deduped = dedupeBlocks(blocks, config.preserve_case);
-  const separator = config.use_block_separators_in_txt ? '\n' + '*'.repeat(72) + '\n' : '\n';
-  return deduped.join(separator);
+  // Deduplicate each section separately
+  const dedupedSections = {
+    visibleText: dedupeBlocks(sections.visibleText, config.preserve_case),
+    links: dedupeBlocks(sections.links, config.preserve_case),
+    imageTexts: dedupeBlocks(sections.imageTexts, config.preserve_case),
+    legals: dedupeBlocks(sections.legals, config.preserve_case),
+  };
+
+  // Build final text with sections separated by asterisks
+  const separator = config.use_block_separators_in_txt ? '\n' + '*'.repeat(72) + '\n' : '\n\n';
+  const sectionSeparator = '\n';
+  const finalSections = [];
+
+  if (dedupedSections.visibleText.length > 0) {
+    finalSections.push(dedupedSections.visibleText.join(sectionSeparator));
+  }
+  if (dedupedSections.links.length > 0) {
+    finalSections.push(dedupedSections.links.join(sectionSeparator));
+  }
+  if (dedupedSections.imageTexts.length > 0) {
+    finalSections.push(dedupedSections.imageTexts.join(sectionSeparator));
+  }
+  if (dedupedSections.legals.length > 0) {
+    finalSections.push(dedupedSections.legals.join(sectionSeparator));
+  }
+
+  return finalSections.join(separator);
 };
 
 const appendImageUrlsToTxt = (txt, usedImages, config) => {
-  const separator = config.use_block_separators_in_txt ? '\n' + '*'.repeat(72) + '\n' : '\n';
+  const sectionSeparator = config.use_block_separators_in_txt ? '\n' + '*'.repeat(72) + '\n' : '\n\n';
+  const urlSeparator = '\n';
   const urlBlocks = [];
   const existing = new Set(
     txt
@@ -405,7 +489,9 @@ const appendImageUrlsToTxt = (txt, usedImages, config) => {
     return txt;
   }
 
-  return txt ? `${txt}${separator}${urlBlocks.join(separator)}` : urlBlocks.join(separator);
+  // Join URLs with simple newline, then add as a section with separator
+  const urlSection = urlBlocks.join(urlSeparator);
+  return txt ? `${txt}${sectionSeparator}${urlSection}` : urlSection;
 };
 
 const normalizeForComparison = (value) =>

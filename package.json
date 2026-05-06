@@ -1,7 +1,7 @@
 {
-  "name": "rarbox",
+  "name": "utils-amex",
   "version": "0.1.0",
-  "description": "Microservicio seguro para generar archivos RAR bajo demanda",
+  "description": "Utilidades AMEX para compresion PDF y generacion de archivos",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",

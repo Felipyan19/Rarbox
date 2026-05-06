@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y \
   zip \
   unzip \
   wget \
+  ghostscript \
   && rm -rf /var/lib/apt/lists/*
 
 COPY package*.json ./
@@ -23,7 +24,7 @@ RUN if getent passwd 1000 >/dev/null; then \
     fi
 
 RUN mkdir -p /app/temp && chmod 777 /app/temp && \
-    mkdir -p /tmp/rarbox && chmod 777 /tmp/rarbox
+    mkdir -p /tmp/utils-amex && chmod 777 /tmp/utils-amex
 
 USER 1000
 

@@ -24,7 +24,7 @@ async function healthRoutes(fastify) {
   }, async (request, reply) => {
     return {
       status: 'ok',
-      service: 'rarbox',
+      service: 'utils-amex',
       timestamp: new Date().toISOString(),
     };
   });
@@ -47,7 +47,7 @@ async function healthRoutes(fastify) {
   }, async (request, reply) => {
     return {
       status: 'ready',
-      service: 'rarbox',
+      service: 'utils-amex',
       timestamp: new Date().toISOString(),
     };
   });
