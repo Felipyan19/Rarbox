@@ -7,6 +7,20 @@ const LEGAL_PATTERN = /(legal|disclaimer|footnote)/i;
 const BACKGROUND_IMAGE_PATTERN = /background-image\s*:\s*url\((['"]?)(.*?)\1\)/ig;
 const BLOCK_TAG_PATTERN = /<\/?(address|article|aside|blockquote|caption|dd|div|dl|dt|fieldset|figcaption|figure|footer|form|h[1-6]|header|hr|li|main|nav|ol|p|pre|section|table|tbody|td|tfoot|th|thead|tr|ul)\b[^>]*>/ig;
 const BLOCK_SEPARATOR_TOKEN = '__TXT_BLOCK__';
+const BLOCK_SEPARATOR_LINE = '*'.repeat(72);
+const BLOCK_SECTION_SEPARATOR = `\n\n${BLOCK_SEPARATOR_LINE}\n\n`;
+
+const normalizeBlockSeparatorSpacing = (value) => {
+  if (!value) {
+    return value;
+  }
+
+  // Enforce a blank line before and after every separator line.
+  return value
+    .replace(/\n*\*{3,}\n*/g, `\n\n${BLOCK_SEPARATOR_LINE}\n\n`)
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+};
 
 const mergeConfig = (inputConfig = {}) => ({
   ...DEFAULT_PREPARE_CONFIG,
@@ -455,7 +469,7 @@ const extractTxtSectionsFromHtmlSegment = (htmlSegment, deliveryType, config) =>
 };
 
 const generateTxtFromHtml = (html, deliveryType, config) => {
-  const separator = config.use_block_separators_in_txt ? '\n\n' + '*'.repeat(72) + '\n\n' : '\n\n';
+  const separator = config.use_block_separators_in_txt ? BLOCK_SECTION_SEPARATOR : '\n\n';
   const sectionSeparator = '\n';
   const commentSections = extractCommentDelimitedSections(html);
 
@@ -484,7 +498,8 @@ const generateTxtFromHtml = (html, deliveryType, config) => {
         blockTexts.push(blockText);
       }
     }
-    return blockTexts.join(separator);
+    const joined = blockTexts.join(separator);
+    return config.use_block_separators_in_txt ? normalizeBlockSeparatorSpacing(joined) : joined;
   }
 
   // Fallback: no markers, process full html as before
@@ -493,7 +508,7 @@ const generateTxtFromHtml = (html, deliveryType, config) => {
 };
 
 const appendImageUrlsToTxt = (txt, usedImages, config) => {
-  const sectionSeparator = config.use_block_separators_in_txt ? '\n\n' + '*'.repeat(72) + '\n\n' : '\n\n';
+  const sectionSeparator = config.use_block_separators_in_txt ? BLOCK_SECTION_SEPARATOR : '\n\n';
   const urlSeparator = '\n';
   const urlBlocks = [];
   const existing = new Set(
@@ -518,7 +533,8 @@ const appendImageUrlsToTxt = (txt, usedImages, config) => {
 
   // Join URLs with simple newline, then add as a section with separator
   const urlSection = urlBlocks.join(urlSeparator);
-  return txt ? `${txt}${sectionSeparator}${urlSection}` : urlSection;
+  const result = txt ? `${txt}${sectionSeparator}${urlSection}` : urlSection;
+  return config.use_block_separators_in_txt ? normalizeBlockSeparatorSpacing(result) : result;
 };
 
 const normalizeForComparison = (value) =>
