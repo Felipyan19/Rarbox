@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y \
   unzip \
   wget \
   ghostscript \
+  wkhtmltopdf \
   && rm -rf /var/lib/apt/lists/*
 
 COPY package*.json ./

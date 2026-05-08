@@ -32,6 +32,7 @@ class RarCommandService {
 
   async createArchive(sessionDir, archiveName, requestId) {
     const outputPath = path.join(sessionDir, `${archiveName}.zip`);
+    const archiveFilename = `${archiveName}.zip`;
 
     try {
       logger.info(
@@ -41,8 +42,9 @@ class RarCommandService {
 
       await this.validateBinary(requestId);
 
-      // Use zip to create zip archive
-      const command = `cd "${sessionDir}" && zip -r -q "${outputPath}" .`;
+      // Run zip from sessionDir and write archive using a filename relative to cwd.
+      // Exclude the archive itself from the recursive input.
+      const command = `cd "${sessionDir}" && zip -r -q "${archiveFilename}" . -x "${archiveFilename}"`;
 
       logger.debug({ requestId, command }, 'Executing archive command');
 

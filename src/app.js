@@ -6,6 +6,7 @@ const logger = require('./utils/logger');
 const { healthRoutes, metricsService } = require('./routes/health');
 const rarRoutes = require('./routes/rar');
 const pdfRoutes = require('./routes/pdf');
+const htmlRoutes = require('./routes/html');
 const errorHandler = require('./utils/error-handler');
 
 const app = Fastify({
@@ -59,6 +60,7 @@ app.register(swagger, {
     tags: [
       { name: 'Archives', description: 'Generacion y preparacion de archivos comprimidos' },
       { name: 'PDF', description: 'Compresion y extraccion de PDF' },
+      { name: 'HTML', description: 'Codificacion de caracteres especiales a entidades HTML' },
       { name: 'Health', description: 'Health, readiness y metrics del servicio' },
     ],
     components: {
@@ -87,6 +89,7 @@ app.register(swaggerUi, {
 app.register(healthRoutes);
 app.register(rarRoutes);
 app.register(pdfRoutes);
+app.register(htmlRoutes);
 
 app.addHook('onResponse', (request, reply, done) => {
   metricsService.recordRequest(reply.statusCode);

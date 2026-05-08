@@ -48,4 +48,40 @@ describe('prepare-service comment-delimited parsing', () => {
     expect(txt).toContain('Regular paragraph');
     expect(txt).toContain('Regular link');
   });
+
+  test('uses blank lines around asterisk separators between blocks', () => {
+    const html = `
+      <!-- START: Block 1 -->
+      <p>Primer bloque</p>
+      <!-- END: Block 1 -->
+      <!-- START: Block 2 -->
+      <p>Segundo bloque</p>
+      <!-- END: Block 2 -->
+    `;
+
+    const result = prepare(buildInput(html));
+    const txt = result.txt;
+
+    expect(txt).toContain('Primer bloque');
+    expect(txt).toContain('Segundo bloque');
+    expect(txt).toContain('Primer bloque\n\n************************************************************************\n\nSegundo bloque');
+  });
+
+  test('keeps visually continuous text in a single line across inline tags and br', () => {
+    const html = `
+      <!-- START: Hero -->
+      <p>
+        Disfrute de restaurantes destacados. En <strong>abril</strong><br />
+        lo invitamos a descubrir propuestas de <strong>Ultramarinos</strong>.
+      </p>
+      <!-- END: Hero -->
+    `;
+
+    const result = prepare(buildInput(html));
+    const txt = result.txt;
+
+    expect(txt).toContain('Disfrute de restaurantes destacados. En abril lo invitamos a descubrir propuestas de Ultramarinos.');
+    expect(txt).not.toContain('En\nabril');
+    expect(txt).not.toContain('abril\nlo invitamos');
+  });
 });

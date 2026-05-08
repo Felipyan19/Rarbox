@@ -5,6 +5,8 @@ const ARTIFACT_SUFFIX_PATTERN = /(-test|-draft|-v\d+|_final|_test|_ok|final|test
 const ABSOLUTE_URL_PATTERN = /^https?:\/\//i;
 const LEGAL_PATTERN = /(legal|disclaimer|footnote)/i;
 const BACKGROUND_IMAGE_PATTERN = /background-image\s*:\s*url\((['"]?)(.*?)\1\)/ig;
+const BLOCK_TAG_PATTERN = /<\/?(address|article|aside|blockquote|caption|dd|div|dl|dt|fieldset|figcaption|figure|footer|form|h[1-6]|header|hr|li|main|nav|ol|p|pre|section|table|tbody|td|tfoot|th|thead|tr|ul)\b[^>]*>/ig;
+const BLOCK_SEPARATOR_TOKEN = '__TXT_BLOCK__';
 
 const mergeConfig = (inputConfig = {}) => ({
   ...DEFAULT_PREPARE_CONFIG,
@@ -30,16 +32,52 @@ const cleanArtifactName = (artifactName, config) => {
   };
 };
 
-const decodeEntities = (value) =>
-  value
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/&amp;/gi, '&')
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;/gi, "'")
-    .replace(/&lt;/gi, '<')
-    .replace(/&gt;/gi, '>');
+const decodeEntities = (value) => {
+  const namedEntities = {
+    nbsp: ' ',
+    amp: '&',
+    quot: '"',
+    apos: "'",
+    lt: '<',
+    gt: '>',
+    copy: '©',
+    reg: '®',
+    deg: '°',
+    ordm: 'º',
+    iquest: '¿',
+    iexcl: '¡',
+    aacute: 'á',
+    eacute: 'é',
+    iacute: 'í',
+    oacute: 'ó',
+    uacute: 'ú',
+    ntilde: 'ñ',
+    uuml: 'ü',
+    Aacute: 'Á',
+    Eacute: 'É',
+    Iacute: 'Í',
+    Oacute: 'Ó',
+    Uacute: 'Ú',
+    Ntilde: 'Ñ',
+    Uuml: 'Ü',
+    ldquo: '"',
+    rdquo: '"',
+    lsquo: "'",
+    rsquo: "'",
+    mdash: '-',
+    ndash: '-',
+  };
+
+  return (value || '')
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+    .replace(/&([a-zA-Z][a-zA-Z0-9]+);/g, (full, name) => (
+      Object.prototype.hasOwnProperty.call(namedEntities, name) ? namedEntities[name] : full
+    ));
+};
 
 const normalizeWhitespace = (value) => value.replace(/\s+/g, ' ').trim();
+const normalizeTextLine = (value) => normalizeWhitespace(value).replace(/\s+([,.;:!?])/g, '$1');
 
 const stripTags = (value) => normalizeWhitespace(decodeEntities(value.replace(/<[^>]*>/g, ' ')));
 
@@ -341,17 +379,19 @@ const extractTxtSectionsFromHtmlSegment = (htmlSegment, deliveryType, config) =>
   // Extract visible text first (main content section)
   if (config.include_visible_text_in_txt) {
     let textWorking = htmlSegment;
-    // Remove links, comments, scripts, styles
+    // Keep visual text as complete block lines: strip inline markup, split on block elements.
     textWorking = textWorking
       .replace(/<a\b[^>]*\bhref\s*=\s*(['"])(.*?)\1[^>]*>([\s\S]*?)<\/a>/ig, ' ')
       .replace(/<!--[\s\S]*?-->/g, ' ')
       .replace(/<script[\s\S]*?<\/script>/ig, ' ')
       .replace(/<style[\s\S]*?<\/style>/ig, ' ')
-      .replace(/<[^>]*>/g, '\n');
+      .replace(BLOCK_TAG_PATTERN, BLOCK_SEPARATOR_TOKEN)
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/[\r\n\t]+/g, ' ');
 
     const lines = decodeEntities(textWorking)
-      .split('\n')
-      .map((line) => normalizeWhitespace(line))
+      .split(BLOCK_SEPARATOR_TOKEN)
+      .map((line) => normalizeTextLine(line))
       .filter(Boolean);
 
     sections.visibleText.push(...lines);
@@ -415,58 +455,45 @@ const extractTxtSectionsFromHtmlSegment = (htmlSegment, deliveryType, config) =>
 };
 
 const generateTxtFromHtml = (html, deliveryType, config) => {
-  // Separate content by text categories
-  const sections = {
-    visibleText: [],
-    links: [],
-    imageTexts: [],
-    legals: [],
-  };
-
-  const commentSections = extractCommentDelimitedSections(html);
-  const htmlSegments = commentSections.length > 0
-    ? commentSections.map((section) => section.html)
-    : [html];
-
-  for (const htmlSegment of htmlSegments) {
-    const extracted = extractTxtSectionsFromHtmlSegment(htmlSegment, deliveryType, config);
-    sections.visibleText.push(...extracted.visibleText);
-    sections.links.push(...extracted.links);
-    sections.imageTexts.push(...extracted.imageTexts);
-    sections.legals.push(...extracted.legals);
-  }
-
-  // Deduplicate each section separately
-  const dedupedSections = {
-    visibleText: dedupeBlocks(sections.visibleText, config.preserve_case),
-    links: dedupeBlocks(sections.links, config.preserve_case),
-    imageTexts: dedupeBlocks(sections.imageTexts, config.preserve_case),
-    legals: dedupeBlocks(sections.legals, config.preserve_case),
-  };
-
-  // Build final text with sections separated by asterisks
-  const separator = config.use_block_separators_in_txt ? '\n' + '*'.repeat(72) + '\n' : '\n\n';
+  const separator = config.use_block_separators_in_txt ? '\n\n' + '*'.repeat(72) + '\n\n' : '\n\n';
   const sectionSeparator = '\n';
-  const finalSections = [];
+  const commentSections = extractCommentDelimitedSections(html);
 
-  if (dedupedSections.visibleText.length > 0) {
-    finalSections.push(dedupedSections.visibleText.join(sectionSeparator));
-  }
-  if (dedupedSections.links.length > 0) {
-    finalSections.push(dedupedSections.links.join(sectionSeparator));
-  }
-  if (dedupedSections.imageTexts.length > 0) {
-    finalSections.push(dedupedSections.imageTexts.join(sectionSeparator));
-  }
-  if (dedupedSections.legals.length > 0) {
-    finalSections.push(dedupedSections.legals.join(sectionSeparator));
+  const buildBlockText = (extracted) => {
+    const deduped = {
+      visibleText: dedupeBlocks(extracted.visibleText, config.preserve_case),
+      links: dedupeBlocks(extracted.links, config.preserve_case),
+      imageTexts: dedupeBlocks(extracted.imageTexts, config.preserve_case),
+      legals: dedupeBlocks(extracted.legals, config.preserve_case),
+    };
+
+    const parts = [];
+    if (deduped.visibleText.length > 0) parts.push(deduped.visibleText.join(sectionSeparator));
+    if (deduped.links.length > 0) parts.push(deduped.links.join(sectionSeparator));
+    if (deduped.imageTexts.length > 0) parts.push(deduped.imageTexts.join(sectionSeparator));
+    if (deduped.legals.length > 0) parts.push(deduped.legals.join(sectionSeparator));
+    return parts.join(sectionSeparator);
+  };
+
+  if (commentSections.length > 0) {
+    const blockTexts = [];
+    for (const section of commentSections) {
+      const extracted = extractTxtSectionsFromHtmlSegment(section.html, deliveryType, config);
+      const blockText = buildBlockText(extracted);
+      if (blockText) {
+        blockTexts.push(blockText);
+      }
+    }
+    return blockTexts.join(separator);
   }
 
-  return finalSections.join(separator);
+  // Fallback: no markers, process full html as before
+  const fullExtracted = extractTxtSectionsFromHtmlSegment(html, deliveryType, config);
+  return buildBlockText(fullExtracted);
 };
 
 const appendImageUrlsToTxt = (txt, usedImages, config) => {
-  const sectionSeparator = config.use_block_separators_in_txt ? '\n' + '*'.repeat(72) + '\n' : '\n\n';
+  const sectionSeparator = config.use_block_separators_in_txt ? '\n\n' + '*'.repeat(72) + '\n\n' : '\n\n';
   const urlSeparator = '\n';
   const urlBlocks = [];
   const existing = new Set(
@@ -594,8 +621,8 @@ const prepare = (input) => {
   }
   txt = appendImageUrlsToTxt(txt, resolved.used_images, effectiveConfig);
 
-  // Add PUBLICIDAD header if not present
-  if (txt && !txt.trim().startsWith('PUBLICIDAD')) {
+  // Add PUBLICIDAD header if not present in text
+  if (txt && !/\bPUBLICIDAD\b/i.test(txt)) {
     txt = 'PUBLICIDAD\n\n\n' + txt;
   }
 
