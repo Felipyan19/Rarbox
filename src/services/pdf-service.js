@@ -15,10 +15,11 @@ const QUALITY_SETTINGS = {
 };
 
 class PdfService {
-  constructor(tempDir = '/tmp/utils-amex', gsBin = 'gs', htmlToPdfBin = 'wkhtmltopdf') {
+  constructor(tempDir = '/tmp/utils-amex', gsBin = 'gs', htmlToPdfBin = 'wkhtmltopdf', pdfImagesBin = 'pdfimages') {
     this.tempFileService = new TempFileService(tempDir);
     this.gsBin = gsBin;
     this.htmlToPdfBin = htmlToPdfBin;
+    this.pdfImagesBin = pdfImagesBin;
   }
 
   async _fetchPdf(url) {
@@ -293,6 +294,140 @@ class PdfService {
 
     const outputBuffer = await fs.readFile(outputPath);
     request.log.info({ requestId, outputSize: outputBuffer.length }, 'Final 2-page PDF generated');
+
+    return { sessionDir, buffer: outputBuffer };
+  }
+
+  async extractImages(request, url, requestId) {
+    const sessionDir = await this.tempFileService.initSession(requestId);
+    const pdfPath = path.join(sessionDir, 'input.pdf');
+    const imagesPrefix = path.join(sessionDir, 'img');
+
+    request.log.info({ requestId, url }, 'Fetching PDF for image extraction');
+    const pdfBuffer = await this._fetchPdf(url);
+    await fs.writeFile(pdfPath, pdfBuffer, { mode: 0o600 });
+
+    try {
+      await execFileAsync(this.pdfImagesBin, [
+        '-all',
+        pdfPath,
+        imagesPrefix,
+      ]);
+    } catch (error) {
+      if (error.code === 'ENOENT') {
+        throw new InternalError(
+          `pdfimages binary "${this.pdfImagesBin}" not found. Install poppler-utils.`
+        );
+      }
+      throw new InternalError(`Image extraction failed: ${error.stderr || error.message}`);
+    }
+
+    const files = await fs.readdir(sessionDir);
+    const imageFiles = files.filter((f) => f.startsWith('img-'));
+
+    const images = [];
+    for (const file of imageFiles) {
+      const match = file.match(/img-(\d+)-(\d+)\.(ppm|pbm|png|jpg)/);
+      if (match) {
+        const page = parseInt(match[1], 10) + 1;
+        const imageNum = parseInt(match[2], 10);
+        const ext = match[3];
+
+        images.push({
+          filename: file,
+          path: path.join(sessionDir, file),
+          page,
+          imageNum,
+          label: `P${page}_IMG${imageNum}`,
+          ext,
+        });
+      }
+    }
+
+    images.sort((a, b) => {
+      if (a.page !== b.page) return a.page - b.page;
+      return a.imageNum - b.imageNum;
+    });
+
+    request.log.info({ requestId, count: images.length }, 'Images extracted from PDF');
+
+    return { sessionDir, images };
+  }
+
+  async createImageGridPdf(request, images, requestId) {
+    const sessionDir = await this.tempFileService.initSession(requestId);
+    const htmlPath = path.join(sessionDir, 'grid.html');
+    const outputPath = path.join(sessionDir, 'grid.pdf');
+
+    const imageRowsPromises = images.map(async (img) => {
+      const imgData = await fs.readFile(img.path);
+      const base64 = imgData.toString('base64');
+
+      let mimeType;
+      if (img.ext === 'png') {
+        mimeType = 'image/png';
+      } else if (img.ext === 'jpg') {
+        mimeType = 'image/jpeg';
+      } else if (img.ext === 'ppm') {
+        mimeType = 'image/x-portable-pixmap';
+      } else if (img.ext === 'pbm') {
+        mimeType = 'image/x-portable-bitmap';
+      } else {
+        mimeType = 'image/jpeg';
+      }
+
+      return `
+        <div style="page-break-inside: avoid; margin-bottom: 20px; border: 1px solid #ccc; padding: 10px;">
+          <h3 style="margin: 0 0 10px 0; font-family: Arial, sans-serif;">${img.label}</h3>
+          <img src="data:${mimeType};base64,${base64}" style="max-width: 100%; height: auto;" />
+        </div>
+      `;
+    });
+
+    const imageRows = (await Promise.all(imageRowsPromises)).join('\n');
+
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body {
+      margin: 20px;
+      font-family: Arial, sans-serif;
+    }
+  </style>
+</head>
+<body>
+  ${imageRows}
+</body>
+</html>
+    `.trim();
+
+    await fs.writeFile(htmlPath, html, { mode: 0o600 });
+
+    try {
+      await execFileAsync(this.htmlToPdfBin, [
+        '--encoding', 'utf-8',
+        '--enable-local-file-access',
+        '--margin-top', '10',
+        '--margin-right', '10',
+        '--margin-bottom', '10',
+        '--margin-left', '10',
+        htmlPath,
+        outputPath,
+      ]);
+    } catch (error) {
+      if (error.code === 'ENOENT') {
+        throw new InternalError(
+          `HTML to PDF binary "${this.htmlToPdfBin}" not found. Install wkhtmltopdf.`
+        );
+      }
+      throw new InternalError(`Grid PDF generation failed: ${error.stderr || error.message}`);
+    }
+
+    const outputBuffer = await fs.readFile(outputPath);
+    request.log.info({ requestId, outputSize: outputBuffer.length }, 'Grid PDF generated');
 
     return { sessionDir, buffer: outputBuffer };
   }
