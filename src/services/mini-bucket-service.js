@@ -16,8 +16,23 @@ class MiniBucketService {
     try {
       const fileBuffer = await fs.readFile(filePath);
 
+      // Determine content type from filename extension
+      let contentType = 'application/octet-stream';
+      const ext = filename.toLowerCase().split('.').pop();
+      if (ext === 'pdf') {
+        contentType = 'application/pdf';
+      } else if (ext === 'png') {
+        contentType = 'image/png';
+      } else if (ext === 'jpg' || ext === 'jpeg') {
+        contentType = 'image/jpeg';
+      } else if (ext === 'gif') {
+        contentType = 'image/gif';
+      } else if (ext === 'webp') {
+        contentType = 'image/webp';
+      }
+
       const formData = new FormData();
-      formData.append('file', new Blob([fileBuffer]), filename);
+      formData.append('file', new Blob([fileBuffer], { type: contentType }), filename);
       formData.append('exp', exp !== null && exp !== undefined ? String(exp) : '');
 
       const response = await fetch(`${this.baseUrl}/files`, {

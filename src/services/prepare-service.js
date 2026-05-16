@@ -16,8 +16,9 @@ const normalizeBlockSeparatorSpacing = (value) => {
   }
 
   // Enforce a blank line before and after every separator line.
+  // Require newlines on both sides so inline footnote markers (e.g. "interna***,") are not treated as separators.
   return value
-    .replace(/\n*\*{3,}\n*/g, `\n\n${BLOCK_SEPARATOR_LINE}\n\n`)
+    .replace(/\n+\*{3,}\n+/g, `\n\n${BLOCK_SEPARATOR_LINE}\n\n`)
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 };
@@ -360,21 +361,23 @@ const dedupeBlocks = (blocks, preserveCase) => {
 const extractCommentDelimitedSections = (html) => {
   const sections = [];
   const markerRegex = /<!--\s*(START|END)\s*:\s*([\s\S]*?)\s*-->/ig;
-  let startMatch = null;
+  const stack = [];
   let markerMatch = markerRegex.exec(html);
 
   while (markerMatch) {
     const markerType = (markerMatch[1] || '').toUpperCase();
+    const label = normalizeWhitespace(markerMatch[2] || '');
+
     if (markerType === 'START') {
-      startMatch = markerMatch;
-    } else if (markerType === 'END' && startMatch) {
-      const startTagEndIndex = startMatch.index + startMatch[0].length;
-      const sectionHtml = html.slice(startTagEndIndex, markerMatch.index);
-      sections.push({
-        label: normalizeWhitespace(startMatch[2] || ''),
-        html: sectionHtml,
-      });
-      startMatch = null;
+      stack.push({ match: markerMatch, label });
+    } else if (markerType === 'END' && stack.length > 0) {
+      const startItem = stack.pop();
+      // Only capture top-level sections (not nested ones) to avoid duplicating content
+      if (stack.length === 0) {
+        const startTagEndIndex = startItem.match.index + startItem.match[0].length;
+        const sectionHtml = html.slice(startTagEndIndex, markerMatch.index);
+        sections.push({ label: startItem.label, html: sectionHtml });
+      }
     }
     markerMatch = markerRegex.exec(html);
   }
@@ -403,10 +406,20 @@ const extractTxtSectionsFromHtmlSegment = (htmlSegment, deliveryType, config) =>
       .replace(/<[^>]*>/g, ' ')
       .replace(/[\r\n\t]+/g, ' ');
 
-    const lines = decodeEntities(textWorking)
+    const rawLines = decodeEntities(textWorking)
       .split(BLOCK_SEPARATOR_TOKEN)
       .map((line) => normalizeTextLine(line))
-      .filter(Boolean);
+      .filter(Boolean)
+      .filter((line) => !/^\*+$/.test(line.trim()));
+
+    const lines = [];
+    for (const line of rawLines) {
+      if (lines.length > 0 && /^,/.test(line)) {
+        lines[lines.length - 1] += line;
+      } else {
+        lines.push(line);
+      }
+    }
 
     sections.visibleText.push(...lines);
   }
@@ -417,7 +430,8 @@ const extractTxtSectionsFromHtmlSegment = (htmlSegment, deliveryType, config) =>
   while (linkMatch) {
     const href = normalizeWhitespace(linkMatch[2] || '');
     const text = stripTags(linkMatch[3] || '');
-    if (text || href) {
+    // Skip icon-only anchors (no visible text content, just an image or empty)
+    if (text && href) {
       sections.links.push(formatLink(text, href, deliveryType, config));
     }
     linkMatch = linkRegex.exec(htmlSegment);
@@ -468,10 +482,16 @@ const extractTxtSectionsFromHtmlSegment = (htmlSegment, deliveryType, config) =>
   return sections;
 };
 
+const normalizeHtmlForTxt = (html) => html
+  .replace(/\r\n|\r/g, '\n')
+  .replace(/[\t\n ]{2,}/g, ' ')
+  .trim();
+
 const generateTxtFromHtml = (html, deliveryType, config) => {
   const separator = config.use_block_separators_in_txt ? BLOCK_SECTION_SEPARATOR : '\n\n';
   const sectionSeparator = '\n';
-  const commentSections = extractCommentDelimitedSections(html);
+  const normalized = normalizeHtmlForTxt(html);
+  const commentSections = extractCommentDelimitedSections(normalized);
 
   const buildBlockText = (extracted) => {
     const deduped = {
@@ -480,6 +500,19 @@ const generateTxtFromHtml = (html, deliveryType, config) => {
       imageTexts: dedupeBlocks(extracted.imageTexts, config.preserve_case),
       legals: dedupeBlocks(extracted.legals, config.preserve_case),
     };
+
+    // Remove imageTexts that already appear as the text portion of a link (e.g. icon alt text)
+    const linkTextSet = new Set(
+      deduped.links.map((link) => {
+        const parenIdx = link.lastIndexOf(' (');
+        const text = parenIdx !== -1 ? link.slice(0, parenIdx) : link.split('\n')[0];
+        return (config.preserve_case ? text : text.toLowerCase()).trim();
+      })
+    );
+    deduped.imageTexts = deduped.imageTexts.filter((t) => {
+      const key = (config.preserve_case ? t : t.toLowerCase()).trim();
+      return !linkTextSet.has(key);
+    });
 
     const parts = [];
     if (deduped.visibleText.length > 0) parts.push(deduped.visibleText.join(sectionSeparator));
@@ -490,20 +523,32 @@ const generateTxtFromHtml = (html, deliveryType, config) => {
   };
 
   if (commentSections.length > 0) {
-    const blockTexts = [];
+    const sectionPairs = [];
     for (const section of commentSections) {
+      if (/^separator$/i.test(section.label.trim())) continue;
       const extracted = extractTxtSectionsFromHtmlSegment(section.html, deliveryType, config);
       const blockText = buildBlockText(extracted);
       if (blockText) {
-        blockTexts.push(blockText);
+        sectionPairs.push({ label: section.label, text: blockText });
       }
     }
-    const joined = blockTexts.join(separator);
+
+    // Merge consecutive sections with the same label into one block
+    const merged = [];
+    for (const pair of sectionPairs) {
+      if (merged.length > 0 && merged[merged.length - 1].label === pair.label) {
+        merged[merged.length - 1].text += sectionSeparator + pair.text;
+      } else {
+        merged.push({ ...pair });
+      }
+    }
+
+    const joined = merged.map((p) => p.text).join(separator);
     return config.use_block_separators_in_txt ? normalizeBlockSeparatorSpacing(joined) : joined;
   }
 
   // Fallback: no markers, process full html as before
-  const fullExtracted = extractTxtSectionsFromHtmlSegment(html, deliveryType, config);
+  const fullExtracted = extractTxtSectionsFromHtmlSegment(normalized, deliveryType, config);
   return buildBlockText(fullExtracted);
 };
 

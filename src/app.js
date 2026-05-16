@@ -12,6 +12,8 @@ const errorHandler = require('./utils/error-handler');
 const app = Fastify({
   logger: logger,
   bodyLimit: parseInt(process.env.MAX_BODY_SIZE_MB || '5', 10) * 1024 * 1024,
+  connectionTimeout: parseInt(process.env.CONNECTION_TIMEOUT_MS || '0', 10),
+  requestTimeout: parseInt(process.env.REQUEST_TIMEOUT_MS || '360000', 10), // 6 minutes default
 });
 
 app.register(helmet, {

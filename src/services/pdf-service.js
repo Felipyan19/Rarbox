@@ -7,6 +7,9 @@ const { ValidationError, InternalError } = require('../utils/errors');
 
 const execFileAsync = promisify(execFile);
 const FETCH_TIMEOUT_MS = 30000;
+const WKHTMLTOPDF_TIMEOUT_MS = parseInt(process.env.WKHTMLTOPDF_TIMEOUT_MS || '240000', 10); // 4 minutes default
+const GHOSTSCRIPT_TIMEOUT_MS = parseInt(process.env.GHOSTSCRIPT_TIMEOUT_MS || '120000', 10); // 2 minutes default
+const SKIP_HTML_AUTO_HEIGHT = process.env.SKIP_HTML_AUTO_HEIGHT === 'true'; // Skip two-pass rendering for performance
 
 const QUALITY_SETTINGS = {
   screen: '/screen',
@@ -74,8 +77,11 @@ class PdfService {
         '-dLastPage=1',
         `-sOutputFile=${outputPath}`,
         inputPath,
-      ]);
+      ], { timeout: GHOSTSCRIPT_TIMEOUT_MS });
     } catch (error) {
+      if (error.killed && error.signal) {
+        throw new InternalError(`Ghostscript compression timed out after ${GHOSTSCRIPT_TIMEOUT_MS}ms`);
+      }
       throw new InternalError(`Ghostscript failed: ${error.stderr || error.message}`);
     }
 
@@ -167,12 +173,15 @@ class PdfService {
         `${pageHeightMm}mm`,
         inputPath,
         outputPath,
-      ]);
+      ], { timeout: WKHTMLTOPDF_TIMEOUT_MS });
     } catch (error) {
       if (error.code === 'ENOENT') {
         throw new InternalError(
           `HTML to PDF binary "${this.htmlToPdfBin}" not found. Install wkhtmltopdf or configure HTML_TO_PDF_BIN.`
         );
+      }
+      if (error.killed && error.signal) {
+        throw new InternalError(`HTML to PDF conversion timed out after ${WKHTMLTOPDF_TIMEOUT_MS}ms`);
       }
       throw new InternalError(`HTML to PDF conversion failed: ${error.stderr || error.message}`);
     }
@@ -224,8 +233,11 @@ class PdfService {
         '-dLastPage=1',
         `-sOutputFile=${firstPagePath}`,
         sourcePdfPath,
-      ]);
+      ], { timeout: GHOSTSCRIPT_TIMEOUT_MS });
     } catch (error) {
+      if (error.killed && error.signal) {
+        throw new InternalError(`Ghostscript page extraction timed out after ${GHOSTSCRIPT_TIMEOUT_MS}ms`);
+      }
       throw new InternalError(`Failed extracting first page from source PDF: ${error.stderr || error.message}`);
     }
 
@@ -240,42 +252,59 @@ class PdfService {
       '--page-width', `${pageWidthMm}mm`,
     ];
 
+    let pageHeightMm;
+
+    // Two-pass rendering: detect content height for precise page sizing
+    // Set SKIP_HTML_AUTO_HEIGHT=true to skip this for better performance
+    if (!SKIP_HTML_AUTO_HEIGHT) {
+      try {
+        // Pass 1: render with large height to capture full content
+        await execFileAsync(this.htmlToPdfBin, [
+          ...wkhtmlArgs, '--page-height', '10000mm', htmlPath, htmlPdfTallPath,
+        ], { timeout: WKHTMLTOPDF_TIMEOUT_MS });
+
+        // Detect actual content height from pass 1
+        const detected = await this.getContentHeightMm(htmlPdfTallPath);
+        if (detected && detected > 0) {
+          pageHeightMm = detected;
+          request.log.info({ requestId, pageWidthMm, pageHeightMm }, 'Auto-detected HTML content height');
+        }
+      } catch (error) {
+        if (error.code === 'ENOENT') {
+          throw new InternalError(
+            `HTML to PDF binary "${this.htmlToPdfBin}" not found. Install wkhtmltopdf or configure HTML_TO_PDF_BIN.`
+          );
+        }
+        if (error.killed && error.signal) {
+          throw new InternalError(`HTML to PDF conversion (pass 1) timed out after ${WKHTMLTOPDF_TIMEOUT_MS}ms`);
+        }
+        // If pass 1 fails, log warning and continue with default height
+        request.log.warn({ requestId, error: error.message }, 'Pass 1 rendering failed, using fallback height');
+      }
+    } else {
+      request.log.info({ requestId }, 'Skipping two-pass rendering (SKIP_HTML_AUTO_HEIGHT=true)');
+    }
+
+    if (!pageHeightMm) {
+      pageHeightMm = dimensions?.heightMm ?? (process.env.HTML_PAGE_HEIGHT_MM || '2000');
+      request.log.info({ requestId, pageHeightMm }, 'Using fallback height for HTML rendering');
+    }
+
     try {
-      // Pass 1: render with large height to capture full content
+      // Final render with detected or fallback height
       await execFileAsync(this.htmlToPdfBin, [
-        ...wkhtmlArgs, '--page-height', '10000mm', htmlPath, htmlPdfTallPath,
-      ]);
+        ...wkhtmlArgs, '--page-height', `${pageHeightMm}mm`, htmlPath, htmlPdfPath,
+      ], { timeout: WKHTMLTOPDF_TIMEOUT_MS });
     } catch (error) {
       if (error.code === 'ENOENT') {
         throw new InternalError(
           `HTML to PDF binary "${this.htmlToPdfBin}" not found. Install wkhtmltopdf or configure HTML_TO_PDF_BIN.`
         );
       }
-      throw new InternalError(`HTML to PDF conversion failed: ${error.stderr || error.message}`);
-    }
-
-    // Detect actual content height from pass 1
-    let pageHeightMm;
-    try {
-      const detected = await this.getContentHeightMm(htmlPdfTallPath);
-      if (detected && detected > 0) {
-        pageHeightMm = detected;
-        request.log.info({ requestId, pageWidthMm, pageHeightMm }, 'Auto-detected HTML content height');
+      if (error.killed && error.signal) {
+        throw new InternalError(`HTML to PDF conversion timed out after ${WKHTMLTOPDF_TIMEOUT_MS}ms`);
       }
-    } catch (_) { /* fall through to default */ }
-
-    if (!pageHeightMm) {
-      pageHeightMm = dimensions?.heightMm ?? (process.env.HTML_PAGE_HEIGHT_MM || '2000');
-      request.log.warn({ requestId, pageHeightMm }, 'Using fallback height for HTML rendering');
-    }
-
-    try {
-      // Pass 2: render with exact detected height
-      await execFileAsync(this.htmlToPdfBin, [
-        ...wkhtmlArgs, '--page-height', `${pageHeightMm}mm`, htmlPath, htmlPdfPath,
-      ]);
-    } catch (error) {
-      throw new InternalError(`HTML to PDF conversion failed (pass 2): ${error.stderr || error.message}`);
+      throw new InternalError(`HTML to PDF conversion failed: ${error.stderr || error.message}`);
     }
 
     try {
@@ -287,8 +316,11 @@ class PdfService {
         `-sOutputFile=${outputPath}`,
         firstPagePath,
         htmlPdfPath,
-      ]);
+      ], { timeout: GHOSTSCRIPT_TIMEOUT_MS });
     } catch (error) {
+      if (error.killed && error.signal) {
+        throw new InternalError(`Ghostscript PDF merging timed out after ${GHOSTSCRIPT_TIMEOUT_MS}ms`);
+      }
       throw new InternalError(`Failed merging source page with HTML PDF: ${error.stderr || error.message}`);
     }
 
@@ -327,27 +359,22 @@ class PdfService {
 
     const images = [];
     for (const file of imageFiles) {
-      const match = file.match(/img-(\d+)-(\d+)\.(ppm|pbm|png|jpg)/);
+      const match = file.match(/img-(\d+)\.(ppm|pbm|png|jpg)/);
       if (match) {
-        const page = parseInt(match[1], 10) + 1;
-        const imageNum = parseInt(match[2], 10);
-        const ext = match[3];
+        const imageNum = parseInt(match[1], 10);
+        const ext = match[2];
 
         images.push({
           filename: file,
           path: path.join(sessionDir, file),
-          page,
           imageNum,
-          label: `P${page}_IMG${imageNum}`,
+          label: `IMG${String(imageNum).padStart(3, '0')}`,
           ext,
         });
       }
     }
 
-    images.sort((a, b) => {
-      if (a.page !== b.page) return a.page - b.page;
-      return a.imageNum - b.imageNum;
-    });
+    images.sort((a, b) => a.imageNum - b.imageNum);
 
     request.log.info({ requestId, count: images.length }, 'Images extracted from PDF');
 
@@ -416,7 +443,7 @@ class PdfService {
         '--margin-left', '10',
         htmlPath,
         outputPath,
-      ]);
+      ], { timeout: WKHTMLTOPDF_TIMEOUT_MS });
     } catch (error) {
       if (error.code === 'ENOENT') {
         throw new InternalError(

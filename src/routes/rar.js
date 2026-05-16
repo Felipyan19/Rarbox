@@ -93,7 +93,6 @@ async function rarRoutes(fastify, opts) {
     schema: {
       tags: ['Archives'],
       summary: 'Generate a RAR archive from HTML and text content',
-      security: [{ ApiKeyAuth: [] }],
       body: {
         type: 'object',
         required: ['archiveName', 'files'],
@@ -145,7 +144,7 @@ async function rarRoutes(fastify, opts) {
     request.log.info({ requestId: request.id }, 'POST /v1/archives/rar received');
 
     try {
-      checkApiKey(request, API_KEY);
+      // checkApiKey(request, API_KEY); // API key disabled for this endpoint
 
       const validated = validateRarRequest(request.body);
 

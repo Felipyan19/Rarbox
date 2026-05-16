@@ -1,0 +1,67 @@
+https://n8n-dev.niawi.tech/
+
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkNjEzZGYxZC1mZjVlLTRjMzEtOTVhNC01MzdhNjVlODBhZDAiLCJpc3MiOiJuOG4iLCJhdWQiOiJwdWJsaWMtYXBpIiwiaWF0IjoxNzcyMjc4NjI3fQ.h0J1dBj2RDCf-lSmai0sTPEoP0hu0ZHJxeylUQQzuzM
+
+
+https://automatizacion.adamfoods.com/
+
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI3MTdlMzdlNi0xYTBiLTQ2ZTQtYjExMC1iZWRlNTVlMzU3ZWYiLCJpc3MiOiJuOG4iLCJhdWQiOiJwdWJsaWMtYXBpIiwiaWF0IjoxNzcyMjc4NTg0fQ.3_t2OyrtZvTI0jHsDQbUEdh77k-lS5L5m_HBYRlPVEM
+
+Claude desktop
+%LOCALAPPDATA%\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Roaming\Claude
+
+codex
+C:\Users\USUARIO\.codex\config.toml
+
+================================================================================
+NUEVO ENDPOINT: /v1/pdf/extract-images
+================================================================================
+
+Extrae imágenes de un PDF, las sube al mini bucket y genera un PDF con grid de imágenes etiquetadas.
+
+ENDPOINT:
+  POST /v1/pdf/extract-images
+
+REQUEST BODY:
+  {
+    "url": "https://example.com/documento.pdf",  // Required: URL del PDF
+    "exp": 3600                                   // Optional: Segundos de expiración para archivos en mini bucket
+  }
+
+RESPONSE:
+  {
+    "pdf_url": "http://149.130.164.187:2020/files/download/by-name/requestid_images_grid.pdf",
+    "images": [
+      {
+        "label": "P1_IMG1",
+        "url": "http://149.130.164.187:2020/files/download/by-name/requestid_P1_IMG1.png"
+      },
+      {
+        "label": "P2_IMG1",
+        "url": "http://149.130.164.187:2020/files/download/by-name/requestid_P2_IMG1.jpg"
+      }
+    ]
+  }
+
+VARIABLES DE ENTORNO:
+  - MINI_BUCKET_URL: URL del servicio mini bucket (default: http://149.130.164.187:2020)
+
+DEPENDENCIAS REQUERIDAS:
+  - poppler-utils (para pdfimages)
+  - wkhtmltopdf
+  - ghostscript
+
+FORMATO DE ETIQUETAS:
+  P{page}_IMG{number}
+  Ejemplo: P1_IMG1 = Primera imagen de la página 1
+           P3_IMG2 = Segunda imagen de la página 3
+
+USO CON OCR:
+  1. El endpoint extrae todas las imágenes del PDF
+  2. Cada imagen se etiqueta con su posición (P{page}_IMG{num})
+  3. Las imágenes se suben al mini bucket con URLs públicas
+  4. Se genera un PDF con todas las imágenes en grid/lista con sus etiquetas visibles
+  5. El OCR puede:
+     - Procesar el PDF para ver las imágenes con sus etiquetas
+     - Usar el JSON para mapear cada etiqueta a su URL pública
+     - Asociar el contenido OCR de cada imagen con su URL correspondiente

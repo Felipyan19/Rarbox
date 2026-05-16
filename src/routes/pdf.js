@@ -20,14 +20,12 @@ async function pdfRoutes(fastify, opts) {
     schema: {
       tags: ['PDF'],
       summary: 'Compress a PDF and extract only page 1',
-      security: [{ ApiKeyAuth: [] }],
       body: {
         type: 'object',
         required: ['url'],
         properties: {
           url: {
             type: 'string',
-            format: 'uri',
             description: 'Publicly accessible URL of the PDF to compress',
           },
           quality: {
@@ -57,7 +55,7 @@ async function pdfRoutes(fastify, opts) {
     request.log.info({ requestId: request.id }, 'POST /v1/pdf/compress received');
 
     try {
-      checkApiKey(request, API_KEY);
+      // checkApiKey(request, API_KEY); // API key disabled for this endpoint
 
       const validated = validatePdfCompressRequest(request.body);
 
@@ -98,14 +96,12 @@ async function pdfRoutes(fastify, opts) {
     schema: {
       tags: ['PDF'],
       summary: 'Convert HTML string to PDF',
-      security: [{ ApiKeyAuth: [] }],
       body: {
         type: 'object',
         required: ['html'],
         properties: {
           pdf_url: {
             type: 'string',
-            format: 'uri',
             description: 'Optional source PDF URL. If provided, page 1 of this PDF will be used as first page in the output',
           },
           html: {
@@ -133,7 +129,7 @@ async function pdfRoutes(fastify, opts) {
     request.log.info({ requestId: request.id }, 'POST /v1/pdf/from-html received');
 
     try {
-      checkApiKey(request, API_KEY);
+      // checkApiKey(request, API_KEY); // API key disabled for this endpoint
       const validated = validateHtmlToPdfRequest(request.body);
 
       const { buffer, sessionDir: sd } = validated.pdf_url
@@ -185,7 +181,6 @@ async function pdfRoutes(fastify, opts) {
         properties: {
           url: {
             type: 'string',
-            format: 'uri',
             description: 'Publicly accessible URL of the PDF to extract images from',
           },
           exp: {
