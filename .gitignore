@@ -22,4 +22,6 @@ test-*.json
 test-*.js
 test-*.sh
 send-to-*.js
+test.html
+test_clean.html
 .codex
